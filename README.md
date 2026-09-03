@@ -89,26 +89,6 @@ cordis.patch.yml  # Cordis bundle patch used by DSH to load the browser plugin.
 - 必须先悬停工作区使 hover card 出现，否则“在资源管理器中打开”可能无法获取路径。
 - 批量归档使用顺序调用以避免并发覆盖；单个失败会暂停并弹窗提示。
 
-## Development
-
-```bash
-# 克隆仓库后可直接在本地引用测试
-git clone https://github.com/<your-username>/dsh-workspace-toolkit.git
-cd dsh-workspace-toolkit
-dsh plugin --profile <your-profile> add .
-```
-
-本项目不含构建步骤，源码即分发文件。修改 `client.js` 后刷新 DSH Web 客户端即可看到效果。
-
-## Publish Checklist
-
-在发布到 npm / 推送 GitHub 前，请确认：
-
-- [ ] 修改 `package.json` 中的 `repository.url` 和 `bugs.url` 为你自己的仓库地址。
-- [ ] 修改 `package.json` 中的 `author` 字段（如需要）。
-- [ ] 运行 `npm version <patch|minor|major>` 提升版本号。
-- [ ] 运行 `npm publish` 发布到 npm（需先登录 `npm login`）。
-- [ ] 在 GitHub 创建同名仓库并推送代码。
 
 ## License
 
