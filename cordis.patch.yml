@@ -1,0 +1,7 @@
+# dsh-workspace-toolkit bundle patch
+# Injects the browser-half plugin into the Cordis profile.
+
+- insert:
+    - id: workspace-toolkit
+      name: dsh-workspace-toolkit
+      config: {}
