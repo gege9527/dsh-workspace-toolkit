@@ -1,6 +1,6 @@
 {
   "name": "dsh-workspace-toolkit",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "DSH 工作区增强工具包：在资源管理器中打开、批量归档会话，以及后续文件/会话操作功能",
   "type": "module",
   "main": "index.js",

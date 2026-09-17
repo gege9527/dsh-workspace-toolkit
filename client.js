@@ -17,9 +17,6 @@ window.__ModuleLoader__.load({
       return lang.indexOf('zh') === 0
     }
     var LABELS = {
-      openInExplorer: isZh() ? '在文件资源管理器中打开' : 'Open in File Explorer',
-      pathNotFound: isZh() ? '未找到工作区路径，请先将鼠标悬停在该工作区上。' : 'Workspace path not found. Please hover over the workspace first.',
-      openFailed: isZh() ? '打开失败：' : 'Failed to open: ',
       batchArchive: isZh() ? '批量归档会话…' : 'Batch Archive Sessions…',
       batchArchiveTitle: isZh() ? '批量归档会话' : 'Batch Archive Sessions',
       selectAll: isZh() ? '全选' : 'Select all',
@@ -34,10 +31,8 @@ window.__ModuleLoader__.load({
       workspaceNotFound: isZh() ? '未找到该工作区，请重试。' : 'Workspace not found. Please try again.'
     }
 
-    // ---- Workspace row / path tracking ----
-    var lastMouseX = 0
-    var lastMouseY = 0
-    var pendingWorkspace = null // { workspaceId, path, title, expires }
+    // ---- Workspace row tracking ----
+    var pendingWorkspace = null // { workspaceId, title, expires }
 
     function isWorkspaceMenuButton(btn) {
       var label = btn.getAttribute('aria-label') || ''
@@ -49,29 +44,6 @@ window.__ModuleLoader__.load({
       while (el && el !== document.body && el !== document.documentElement) {
         if (el.getAttribute && el.getAttribute('role') === 'treeitem') return el
         el = el.parentElement
-      }
-      return null
-    }
-
-    function looksLikePath(text) {
-      return /^([/~]|[a-zA-Z]:\\)/.test(text.trim())
-    }
-
-    function extractPathFromHoverCard(card) {
-      var ariaLabel = card.getAttribute('aria-label')
-      if (ariaLabel) {
-        var idx = ariaLabel.indexOf(': ')
-        if (idx !== -1) {
-          var realPath = ariaLabel.slice(idx + 2).trim()
-          if (looksLikePath(realPath)) return realPath
-        }
-      }
-      var pathEl = card.querySelector('[class*="hoverPath"]')
-      if (pathEl) return (pathEl.textContent || '').trim()
-      var divs = card.querySelectorAll('div')
-      for (var i = 0; i < divs.length; i++) {
-        var text = (divs[i].textContent || '').trim()
-        if (looksLikePath(text)) return text
       }
       return null
     }
@@ -108,39 +80,6 @@ window.__ModuleLoader__.load({
     var sessionCurrent = null
     var sessionPhase = 'idle'
 
-    // Pre-fetch the workspace path whenever a hover card appears.
-    var hoverObserver = new MutationObserver(function (mutations) {
-      for (var i = 0; i < mutations.length; i++) {
-        var added = mutations[i].addedNodes
-        for (var j = 0; j < added.length; j++) {
-          var node = added[j]
-          if (node.nodeType !== 1) continue
-          var style = window.getComputedStyle(node)
-          if (style.position !== 'fixed') continue
-          var className = typeof node.className === 'string' ? node.className : ''
-          var hasHoverPath = node.querySelector('[class*="hoverPath"]') !== null
-          if (className.indexOf('card') === -1 && !hasHoverPath) continue
-          var path = extractPathFromHoverCard(node)
-          if (!path) continue
-          var target = document.elementFromPoint(lastMouseX, lastMouseY)
-          var row = target ? findWorkspaceRow(target) : null
-          if (row) {
-            row.setAttribute('data-dsh-open-workspace-path', path)
-            var item = null
-            for (var k = 0; k < workspaceItems.length; k++) {
-              if (workspaceItems[k].path === path) { item = workspaceItems[k]; break }
-            }
-            if (item) row.setAttribute('data-dsh-open-workspace-id', item.workspaceId)
-          }
-        }
-      }
-    })
-
-    document.addEventListener('mousemove', function (e) {
-      lastMouseX = e.clientX
-      lastMouseY = e.clientY
-    }, true)
-
     document.addEventListener('pointerdown', function (e) {
       var target = e.target
       if (!(target instanceof Element)) return
@@ -158,44 +97,15 @@ window.__ModuleLoader__.load({
       if (!row) return
       var title = extractTitleFromAria(label)
       var item = title ? findWorkspaceItemByTitle(title) : null
-      var path = (item && item.path)
-        || row.getAttribute('data-dsh-open-workspace-path')
-        || null
-      var workspaceId = (item && item.workspaceId)
-        || row.getAttribute('data-dsh-open-workspace-id')
-        || null
+      var workspaceId = (item && item.workspaceId) || null
       // 只在真正的单个工作区行菜单注入；跳过会话菜单和最顶层工作区菜单。
       if (!workspaceId) return
       pendingWorkspace = {
         workspaceId: workspaceId,
-        path: path,
         title: title || (item && item.title) || '',
         expires: Date.now() + 10000
       }
     }, true)
-
-    // ---- Open path via Typert RPC over HTTP ----
-    function makeRpcId() {
-      return Date.now().toString(36) + Math.random().toString(36).slice(2)
-    }
-    function callOpenWorkspacePath(path) {
-      var token = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('token') : null
-      var url = '/api/session/openWorkspacePath' + (token ? '?token=' + encodeURIComponent(token) : '')
-      var rpcId = makeRpcId()
-      return fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'client-request',
-          rpcId: rpcId,
-          method: 'session/openWorkspacePath',
-          payload: { args: { request: { path } } }
-        })
-      }).then(function (res) {
-        if (!res.ok) throw new Error('HTTP ' + res.status + ' ' + res.statusText)
-        return res.json()
-      })
-    }
 
     // ---- Batch archive dialog ----
     var archiveOverlay = null
@@ -434,7 +344,6 @@ window.__ModuleLoader__.load({
     }
 
     // ---- Menu injection ----
-    var EXPLORER_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><polyline points="2 12 12 12 16 8"></polyline></svg>'
     var ARCHIVE_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"></path><path d="M1 3h22v5H1z"></path><path d="M10 12h4"></path></svg>'
 
     function makeMenuItem(ref, label, iconSvg, markerAttr, onClick, extraClass) {
@@ -462,42 +371,16 @@ window.__ModuleLoader__.load({
     }
 
     function injectMenuItem(menu) {
-      if (menu.querySelector('[data-dsh-open-workspace-item]') && menu.querySelector('[data-dsh-batch-archive-item]')) return
+      if (menu.querySelector('[data-dsh-batch-archive-item]')) return
       var ref = menu.querySelector('[role="menuitem"]')
       if (!ref) return
-
-      if (!menu.querySelector('[data-dsh-open-workspace-item]')) {
-        var explorerItem = makeMenuItem(ref, LABELS.openInExplorer, EXPLORER_ICON_SVG, 'data-dsh-open-workspace-item', function () {
-          console.log('[' + NS + '] open in explorer clicked, pendingWorkspace=', pendingWorkspace)
-          if (!pendingWorkspace || !pendingWorkspace.path) {
-            window.alert(LABELS.pathNotFound)
-            return
-          }
-          console.log('[' + NS + '] calling openWorkspacePath with path:', pendingWorkspace.path)
-          callOpenWorkspacePath(pendingWorkspace.path)
-            .then(function (result) {
-              console.log('[' + NS + '] openWorkspacePath result:', result)
-              var ok = result.ok !== false || result.opened === true
-              if (!ok) {
-                console.error('[' + NS + '] openWorkspacePath failed:', result.error)
-                window.alert(LABELS.openFailed + (result.error ? result.error.message : ''))
-              }
-            })
-            .catch(function (err) {
-              console.error('[' + NS + '] openWorkspacePath error:', err)
-              window.alert(LABELS.openFailed + (err && err.message ? err.message : String(err)))
-            })
-        })
-        if (ref.parentElement) ref.parentElement.insertBefore(explorerItem, ref)
-        else menu.appendChild(explorerItem)
-      }
 
       if (!menu.querySelector('[data-dsh-batch-archive-item]')) {
         var archiveItem = makeMenuItem(ref, LABELS.batchArchive, ARCHIVE_ICON_SVG, 'data-dsh-batch-archive-item', function () {
           openArchiveDialog()
         })
         if (ref.parentElement) {
-          var sibling = menu.querySelector('[data-dsh-open-workspace-item]') || ref
+          var sibling = ref
           if (sibling.nextSibling) ref.parentElement.insertBefore(archiveItem, sibling.nextSibling)
           else ref.parentElement.appendChild(archiveItem)
         } else {
@@ -594,7 +477,6 @@ window.__ModuleLoader__.load({
       // sessions/uiWorkspace 只在批量归档弹窗中使用；快照延迟到打开弹窗时读取，
       // 避免在 inactive context 中反复订阅、刷屏报错。
 
-      hoverObserver.observe(document.body, { childList: true, subtree: true })
       menuObserver.observe(document.body, { childList: true, subtree: true })
       console.log('[' + NS + '] initialized, workspaces:', workspaceItems.length, 'sessions:', sessionIds.length)
     }

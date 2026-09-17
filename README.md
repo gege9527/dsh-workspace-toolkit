@@ -4,19 +4,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-orange.svg)](https://github.com/deepseek-ai/dsh)
 
-> DSH workspace enhancement toolkit: add "Open in File Explorer" and "Batch Archive Sessions" actions to every workspace row in the DSH sidebar.
+> DSH workspace enhancement toolkit: add "Batch Archive Sessions" action to every workspace row in the DSH sidebar.
 >
-> DSH 工作区增强工具包：在资源管理器侧边栏的每个工作区行注入“在文件资源管理器中打开”和“批量归档会话”快捷操作。
+> DSH 工作区增强工具包：在资源管理器侧边栏的每个工作区行注入“批量归档会话”快捷操作。
 
 ## Features
-
-- **在文件资源管理器中打开 / Open in File Explorer**
-  - 出现在每个 workspace 行右侧的“⋮”菜单中。
-  - 调用 DSH 原生 API `session.openWorkspacePath(path)`，由后端跨平台打开目录：
-    - Windows → 文件资源管理器
-    - macOS → Finder
-    - Linux → 默认文件管理器（xdg-open）
-  - 若路径尚未获取，会提示先将鼠标悬停到该工作区上以加载 hover card。
 
 - **批量归档会话… / Batch Archive Sessions…**
   - 从工作区菜单打开会话列表面板。
@@ -60,11 +52,8 @@ plugins:
 ## Usage
 
 1. 打开 DSH Web 客户端左侧的工作区（Workspace）侧边栏。
-2. 将鼠标悬停在任一工作区行上，等待 hover card 出现，插件会自动记录该工作区路径。
-3. 点击工作区行右侧的 `⋮`（Workspace actions）菜单。
-4. 选择：
-   - **在文件资源管理器中打开 / Open in File Explorer** — 直接打开目录。
-   - **批量归档会话… / Batch Archive Sessions…** — 勾选需要归档的会话，点击“归档所选”。
+2. 点击工作区行右侧的 `⋮`（Workspace actions）菜单。
+3. 选择 **批量归档会话… / Batch Archive Sessions…**，勾选需要归档的会话后点击“归档所选”。
 
 ## File Structure
 
@@ -76,8 +65,7 @@ cordis.patch.yml  # Cordis bundle patch used by DSH to load the browser plugin.
 
 ## How It Works
 
-- **DOM observation**: 监听 `document.body` 下的 hover card 与 `[role="menu"]`，识别 workspace 菜单后注入两个自定义 `menuitem`。
-- **Workspace path**: 从 DSH hover card 的 `aria-label` 或路径文本提取实际目录路径，并缓存到对应 workspace 行上。
+- **DOM observation**: 监听 `document.body` 下的 `[role="menu"]`，识别 workspace 菜单后注入自定义 `menuitem`。
 - **Batch archive**: 打开弹窗时读取 `ctx.workspaces.list` 与 `ctx.sessions.list` 的快照，筛选出可归档会话，按顺序逐个归档。
 - **Internationalization**: 文案根据浏览器 `navigator.language` 在中文与英文间自动切换；暂时无法跟随 DSH 内部语言热切换。
 
@@ -86,9 +74,7 @@ cordis.patch.yml  # Cordis bundle patch used by DSH to load the browser plugin.
 - 本插件不修改 DSH core，依赖 workspace 行与菜单的 DOM 结构；若 DSH 更新后 DOM 变化，插件可能需要同步更新。
 - 批量归档弹窗基于 `ctx.workspaces.list` 和 `ctx.sessions.list` 渲染，不直接操作会话行 DOM，因此相对稳定。
 - 菜单文案基于 `navigator.language` 简单判断，无法跟随 DSH 内部语言切换。
-- 必须先悬停工作区使 hover card 出现，否则“在资源管理器中打开”可能无法获取路径。
 - 批量归档使用顺序调用以避免并发覆盖；单个失败会暂停并弹窗提示。
-
 
 ## License
 
