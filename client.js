@@ -111,6 +111,22 @@ window.__ModuleLoader__.load({
       }
     }, true)
 
+    // ---- Toast notification ----
+    function showToast(message) {
+      var toast = document.createElement('div')
+      toast.className = 'dsh-workspace-toolkit-toast'
+      toast.textContent = message
+      toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:8px 16px;border-radius:8px;font-size:13px;background:var(--dsw-alias-bg-layer-2,#1f2328);color:var(--dsw-alias-label-primary-foreground,#fff);box-shadow:var(--dsw-elevation-prominent,0 4px 20px rgba(0,0,0,0.25));z-index:2147483647;opacity:0;transition:opacity 200ms ease;pointer-events:none;white-space:nowrap;'
+      document.body.appendChild(toast)
+      requestAnimationFrame(function () { toast.style.opacity = '1' })
+      setTimeout(function () {
+        toast.style.opacity = '0'
+        setTimeout(function () {
+          if (toast.parentNode) toast.parentNode.removeChild(toast)
+        }, 200)
+      }, 1800)
+    }
+
     // ---- Clipboard helper ----
     function copyTextToClipboard(text) {
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -411,7 +427,7 @@ window.__ModuleLoader__.load({
             return
           }
           copyTextToClipboard(pendingWorkspace.path).then(function () {
-            window.alert(LABELS.copied)
+            showToast(LABELS.copied)
           }).catch(function (err) {
             console.error('[' + NS + '] copy path error:', err)
             window.alert(LABELS.copyFailed + (err && err.message ? err.message : String(err)))
