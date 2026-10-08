@@ -17,6 +17,9 @@ window.__ModuleLoader__.load({
       return lang.indexOf('zh') === 0
     }
     var LABELS = {
+      copyPath: isZh() ? '复制工作区路径' : 'Copy Workspace Path',
+      copied: isZh() ? '已复制到剪贴板' : 'Copied to clipboard',
+      copyFailed: isZh() ? '复制失败：' : 'Copy failed: ',
       batchArchive: isZh() ? '批量归档会话…' : 'Batch Archive Sessions…',
       batchArchiveTitle: isZh() ? '批量归档会话' : 'Batch Archive Sessions',
       selectAll: isZh() ? '全选' : 'Select all',
@@ -32,7 +35,7 @@ window.__ModuleLoader__.load({
     }
 
     // ---- Workspace row tracking ----
-    var pendingWorkspace = null // { workspaceId, title, expires }
+    var pendingWorkspace = null // { workspaceId, path, title, expires }
 
     function isWorkspaceMenuButton(btn) {
       var label = btn.getAttribute('aria-label') || ''
@@ -102,10 +105,35 @@ window.__ModuleLoader__.load({
       if (!workspaceId) return
       pendingWorkspace = {
         workspaceId: workspaceId,
+        path: (item && item.path) || null,
         title: title || (item && item.title) || '',
         expires: Date.now() + 10000
       }
     }, true)
+
+    // ---- Clipboard helper ----
+    function copyTextToClipboard(text) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text)
+      }
+      return new Promise(function (resolve, reject) {
+        var ta = document.createElement('textarea')
+        ta.value = text
+        ta.style.position = 'fixed'
+        ta.style.opacity = '0'
+        document.body.appendChild(ta)
+        ta.select()
+        try {
+          var ok = document.execCommand('copy')
+          document.body.removeChild(ta)
+          if (ok) resolve()
+          else reject(new Error('execCommand copy failed'))
+        } catch (err) {
+          document.body.removeChild(ta)
+          reject(err)
+        }
+      })
+    }
 
     // ---- Batch archive dialog ----
     var archiveOverlay = null
@@ -344,6 +372,7 @@ window.__ModuleLoader__.load({
     }
 
     // ---- Menu injection ----
+    var COPY_PATH_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>'
     var ARCHIVE_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"></path><path d="M1 3h22v5H1z"></path><path d="M10 12h4"></path></svg>'
 
     function makeMenuItem(ref, label, iconSvg, markerAttr, onClick, extraClass) {
@@ -371,16 +400,33 @@ window.__ModuleLoader__.load({
     }
 
     function injectMenuItem(menu) {
-      if (menu.querySelector('[data-dsh-batch-archive-item]')) return
+      if (menu.querySelector('[data-dsh-copy-path-item]') && menu.querySelector('[data-dsh-batch-archive-item]')) return
       var ref = menu.querySelector('[role="menuitem"]')
       if (!ref) return
+
+      if (!menu.querySelector('[data-dsh-copy-path-item]')) {
+        var copyPathItem = makeMenuItem(ref, LABELS.copyPath, COPY_PATH_ICON_SVG, 'data-dsh-copy-path-item', function () {
+          if (!pendingWorkspace || !pendingWorkspace.path) {
+            window.alert(LABELS.workspaceNotFound)
+            return
+          }
+          copyTextToClipboard(pendingWorkspace.path).then(function () {
+            window.alert(LABELS.copied)
+          }).catch(function (err) {
+            console.error('[' + NS + '] copy path error:', err)
+            window.alert(LABELS.copyFailed + (err && err.message ? err.message : String(err)))
+          })
+        })
+        if (ref.parentElement) ref.parentElement.insertBefore(copyPathItem, ref)
+        else menu.appendChild(copyPathItem)
+      }
 
       if (!menu.querySelector('[data-dsh-batch-archive-item]')) {
         var archiveItem = makeMenuItem(ref, LABELS.batchArchive, ARCHIVE_ICON_SVG, 'data-dsh-batch-archive-item', function () {
           openArchiveDialog()
         })
         if (ref.parentElement) {
-          var sibling = ref
+          var sibling = menu.querySelector('[data-dsh-copy-path-item]') || ref
           if (sibling.nextSibling) ref.parentElement.insertBefore(archiveItem, sibling.nextSibling)
           else ref.parentElement.appendChild(archiveItem)
         } else {

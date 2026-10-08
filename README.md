@@ -4,11 +4,16 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-orange.svg)](https://github.com/deepseek-ai/dsh)
 
-> DSH workspace enhancement toolkit: add "Batch Archive Sessions" action to every workspace row in the DSH sidebar.
+> DSH workspace enhancement toolkit: add "Copy Workspace Path" and "Batch Archive Sessions" actions to every workspace row in the DSH sidebar.
 >
-> DSH 工作区增强工具包：在资源管理器侧边栏的每个工作区行注入“批量归档会话”快捷操作。
+> DSH 工作区增强工具包：在资源管理器侧边栏的每个工作区行注入“复制工作区路径”和“批量归档会话”快捷操作。
 
 ## Features
+
+- **复制工作区路径 / Copy Workspace Path**
+  - 出现在每个 workspace 行右侧的“⋮”菜单中。
+  - 从 `ctx.workspaces.list` 读取该工作区的绝对路径，调用剪贴板 API 复制到系统剪贴板。
+  - 无路径或复制失败时给出提示。
 
 - **批量归档会话… / Batch Archive Sessions…**
   - 从工作区菜单打开会话列表面板。
@@ -53,7 +58,8 @@ plugins:
 
 1. 打开 DSH Web 客户端左侧的工作区（Workspace）侧边栏。
 2. 点击工作区行右侧的 `⋮`（Workspace actions）菜单。
-3. 选择 **批量归档会话… / Batch Archive Sessions…**，勾选需要归档的会话后点击“归档所选”。
+3. 选择 **复制工作区路径 / Copy Workspace Path** 即可复制该工作区的绝对路径。
+4. 选择 **批量归档会话… / Batch Archive Sessions…**，勾选需要归档的会话后点击“归档所选”。
 
 ## File Structure
 
@@ -66,6 +72,7 @@ cordis.patch.yml  # Cordis bundle patch used by DSH to load the browser plugin.
 ## How It Works
 
 - **DOM observation**: 监听 `document.body` 下的 `[role="menu"]`，识别 workspace 菜单后注入自定义 `menuitem`。
+- **Copy path**: 从 `ctx.workspaces.list` 快照获取对应工作区的 `path`，写入系统剪贴板；不支持 Clipboard API 的环境会回退到 `document.execCommand('copy')`。
 - **Batch archive**: 打开弹窗时读取 `ctx.workspaces.list` 与 `ctx.sessions.list` 的快照，筛选出可归档会话，按顺序逐个归档。
 - **Internationalization**: 文案根据浏览器 `navigator.language` 在中文与英文间自动切换；暂时无法跟随 DSH 内部语言热切换。
 
