@@ -9,7 +9,6 @@ window.__ModuleLoader__.load({
     var module = { exports: {} }
     var exports = module.exports
 
-    var NS = 'dsh-workspace-toolkit'
 
     // ---- Lightweight locale (DSH locale switching is not reachable from an external plugin). ----
     function isZh() {
@@ -277,7 +276,6 @@ window.__ModuleLoader__.load({
       if (!target || typeof target.closest !== 'function') return
       var row = target.closest('[data-message-attachments]')
       if (!row) return
-      console.log('[' + NS + '] click in attachments, target.tag:', target.tagName, 'title:', (target.getAttribute && target.getAttribute('title')) || null)
       var el = target
       var card = null
       var ancestry = []
@@ -288,7 +286,6 @@ window.__ModuleLoader__.load({
         if (tag === 'SPAN' && el.getAttribute && el.getAttribute('title')) { card = el; break }
         el = el.parentElement
       }
-      console.log('[' + NS + '] ancestry:', ancestry.join(' > '), 'card found:', card !== null)
       if (!card || !card.getAttribute) return
       // Session id: DSH marks the conversation root with data-conversation-session.
       // Fall back to walking ancestors for any data-session-ish marker.
@@ -299,23 +296,20 @@ window.__ModuleLoader__.load({
         if (marker) { sessionId = marker; break }
         node = node.parentElement
       }
-      console.log('[' + NS + '] session marker on DOM:', sessionId)
       if (!sessionId) {
         try {
           var snap = ctx && ctx.sessions && ctx.sessions.list && ctx.sessions.list.getSnapshot()
           var byId = (snap && snap.byId) || {}
           var ids = (snap && snap.ids) || []
-          console.log('[' + NS + '] sessions snapshot: ids=' + ids.length + ' phase=' + (snap && snap.phase))
           // 无 current 字段：取第一个非 blank 会话作为当前会话兜底（单会话场景成立）。
           for (var i = 0; i < ids.length; i++) {
             var row2 = byId[ids[i]]
             if (row2 && !row2.blank) { sessionId = ids[i]; break }
           }
         } catch (err) {
-          console.warn('[' + NS + '] sessions snapshot failed:', err)
         }
       }
-      if (!sessionId) { console.warn('[' + NS + '] no sessionId, abort'); return }
+      if (!sessionId) return
       var name = card.getAttribute('title')
       if (!name) return
       e.preventDefault()
@@ -376,7 +370,6 @@ window.__ModuleLoader__.load({
     function maybeCollapseUserRow(row, key, rowTotal) {
       // 判断用行总文本量：超长文本会被 refChip 按钮切成多个 span，单个 span
       // 长度不超阈值，但行总量远超——所以先看行总量，够长才精确定位气泡。
-      console.log('[' + NS + '] collapse: key=' + key + ' len=' + rowTotal)
       if (rowTotal <= LONG_TEXT_LIMIT) {
         collapseWatched[key] = rowTotal
         return
@@ -401,7 +394,6 @@ window.__ModuleLoader__.load({
         collapseWatched[key] = rowTotal
         return
       }
-      console.log('[' + NS + '] collapse: clamping bubble len=' + textLengthOf(bubble))
       clampUserBubble(row, bubble)
       collapseWatched[key] = rowTotal
     }
@@ -659,7 +651,6 @@ window.__ModuleLoader__.load({
             archiveNext(i + 1)
           }).catch(function (err) {
             failedOnce = true
-            console.error('[' + NS + '] batch archive error at ' + selectedIds[i] + ':', err)
             window.alert(LABELS.archiveFailed + (err && err.message ? err.message : String(err)))
             archiveBtn.disabled = false
             if (cancelBtn) cancelBtn.disabled = false
@@ -728,7 +719,6 @@ window.__ModuleLoader__.load({
           copyTextToClipboard(pendingWorkspace.path).then(function () {
             showToast(LABELS.copied)
           }).catch(function (err) {
-            console.error('[' + NS + '] copy path error:', err)
             window.alert(LABELS.copyFailed + (err && err.message ? err.message : String(err)))
           })
         })
@@ -845,16 +835,13 @@ window.__ModuleLoader__.load({
               })
               archivedSessionIds = snap.archivedSessionIds || []
             } catch (err) {
-              console.warn('[' + NS + '] failed to read workspaces snapshot:', err)
             }
           }
           refreshWorkspaces()
           ctx.workspaces.list.subscribe(refreshWorkspaces)
         } catch (err) {
-          console.warn('[' + NS + '] workspaces service not usable:', err)
         }
       } else {
-        console.warn('[' + NS + '] ctx.workspaces not available')
       }
 
       // sessions/uiWorkspace 只在批量归档弹窗中使用；快照延迟到打开弹窗时读取，
@@ -1076,14 +1063,12 @@ window.__ModuleLoader__.load({
         // 任何服务（ctx.get/input.for/scopeOf）都会抛 “inactive context”。
         var shell = (origin.shell && typeof origin.shell.setDraft === 'function') ? origin.shell : null
         var conv = (origin.conversation && typeof origin.conversation.releaseDraftAttachment === 'function') ? origin.conversation : null
-        console.log('[' + NS + '] restore: shell=', !!shell, 'conv=', !!conv)
         if (!shell || typeof shell.setDraft !== 'function') {
           window.alert(LABELS.pasteTooLongRestore)
           return
         }
         if (origin.text && origin.text.length > 0) {
           try { shell.setDraft(origin.text) } catch (err) {
-            console.warn('[' + NS + '] setDraft failed:', err)
             window.alert(LABELS.pasteTooLongRestore)
             return
           }
@@ -1183,7 +1168,6 @@ window.__ModuleLoader__.load({
         if (needBubble) scheduleBubbleScan()
       })
       domObserver.observe(document.body, { childList: true, subtree: true })
-      console.log('[' + NS + '] initialized, workspaces:', workspaceItems.length, 'sessions:', sessionIds.length, 'pasteToFile:', toolkitConfig().pasteToFileLimit)
     }
 
     exports.apply = apply
