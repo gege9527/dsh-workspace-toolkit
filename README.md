@@ -30,6 +30,8 @@
   - 经官方草稿管线（`conversation.createDrafts` + `conversation.input.addAttachments`）走正常文件上传，转文件失败时原文回填输入框，不丢内容。
   - 阈值/开关由宿主注入 `__DSH_WORKSPACE_TOOLKIT__`（`pasteToFileLimit`），无注入时默认 2000 且功能自动禁用。
   - 手动拖入的文件与粘贴生成的文件都可点击卡片在右侧栏预览。
+  - composer 附件卡片可点击在右侧栏预览；卡片上的 remove / 重试按钮交给 DSH 原生处理，插件只放行不拦截。
+  - **切换会话后附件丢失属 DSH 原生行为**（draft 附件不跨会话保留），插件不干预、不自动恢复，避免误复活已发送内容。
 
 - **粘贴原文至输入框 / Paste Original Back**
   - 粘贴生成的附件卡片下方自动出现“粘贴原文至输入框”按钮（纯文字 + 下划线，左对齐）。

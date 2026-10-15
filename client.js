@@ -481,17 +481,21 @@ window.__ModuleLoader__.load({
       var archivedSet = {}
       for (var i = 0; i < archivedSessionIds.length; i++) archivedSet[archivedSessionIds[i]] = true
 
-      // 延迟读取 sessions 快照，避免应用启动/订阅时因 inactive context 抛错。
-      if (ctx.sessions && ctx.sessions.list) {
-        try {
-          var sessionSnap = ctx.sessions.list.getSnapshot()
-          sessionIds = sessionSnap.ids || []
-          sessionCurrent = sessionSnap.current || null
-          sessionById = sessionSnap.byId || {}
-          sessionPhase = sessionSnap.phase || 'idle'
-        } catch (err) {
-          // inactive context 等情况下静默跳过
-        }
+      // 延迟读取 sessions 快照，避免菜单触发时因 inactive context 抛错。
+      // 注意：属性访问 ctx.sessions 本身也要包进 try —— inactive context 下会直接抛。
+      var sessionSnap = null
+      try {
+        var sessionsSvc = ctx && ctx.sessions
+        var sessionsList = sessionsSvc && sessionsSvc.list
+        if (sessionsList) sessionSnap = sessionsList.getSnapshot()
+      } catch (err) {
+        // inactive context 等情况下静默跳过
+      }
+      if (sessionSnap) {
+        sessionIds = sessionSnap.ids || []
+        sessionCurrent = sessionSnap.current || null
+        sessionById = sessionSnap.byId || {}
+        sessionPhase = sessionSnap.phase || 'idle'
       }
 
       var workspaceSessionIds = item.sessionIds || []
@@ -880,6 +884,7 @@ window.__ModuleLoader__.load({
         }
       } catch (err) { /* 可选服务，忽略 */ }
 
+
       // 用户超长消息气泡折叠：消息区任何 DOM 变化都防抖扫描一次。
       // React 渲染是渐进添加子节点，不能只看「新增 user 行」——只要消息区
       // 有变化（新消息、历史加载、文本流式写入）都全量重扫，collapseWatched
@@ -972,41 +977,52 @@ window.__ModuleLoader__.load({
         }
       }, true)
 
-      // ---- Composer 附件区：卡片可点击预览 + 粘贴原文恢复 ----
-      // 与消息区不同，composer 的附件还没发送，实体经 conversation.fileUploads
-      // （公开 store）按 name 匹配已上传的 FileAttachmentRef。同 session 内
-      // name 唯一（createDrafts 名来自内容），匹配可靠。
+      // 从任意元素向上解析所属会话 id（DOM 优先，兜底快照第一个非 blank 会话）。
+      function sessionIdFromElement(el) {
+        var n = el
+        while (n && n !== document.body) {
+          var mk = n.getAttribute && (n.getAttribute('data-conversation-session') || n.getAttribute('data-session-id'))
+          if (mk) return mk
+          n = n.parentElement
+        }
+        try {
+          var snap = ctx && ctx.sessions && ctx.sessions.list ? ctx.sessions.list.getSnapshot() : null
+          var ids = (snap && snap.ids) || []
+          var by = (snap && snap.byId) || {}
+          for (var i = 0; i < ids.length; i++) {
+            if (by[ids[i]] && !by[ids[i]].blank) return ids[i]
+          }
+        } catch (e) {}
+        return null
+      }
+
+      // ---- Composer 附件区：卡片点击预览 + 粘贴原文恢复 ----
+      // 按钮（remove/retry）点击一律放行给 DSH 原生处理；点击卡片主体才预览。
       document.addEventListener('click', function (e) {
         var target = e.target
         if (!target || typeof target.closest !== 'function') return
-        // 附件卡片 = FileCard 本体：div[title=文件名]，位于 [data-composer-card]
-        // 输入框容器内，且内含 remove 按钮。点击按钮（remove/retry/恢复）跳过。
         var cardEl = target.closest('[data-composer-card] div[title]')
         if (!cardEl) return
-        if (target.closest('button')) return
         var name = cardEl.getAttribute('title')
         if (!name) return
-        // 若这张卡片是“粘贴生成”的，先确保“粘贴原文至输入框”按钮已就位。
-        ensurePasteRestoreButton(cardEl, name)
-        var sessionId2 = null
-        var n = cardEl
-        while (n && n !== document.body) {
-          var mk = n.getAttribute && (n.getAttribute('data-conversation-session') || n.getAttribute('data-session-id'))
-          if (mk) { sessionId2 = mk; break }
-          n = n.parentElement
-        }
-        if (!sessionId2) {
-          try {
-            var snap2 = ctx && ctx.sessions && ctx.sessions.list ? ctx.sessions.list.getSnapshot() : null
-            var ids2 = (snap2 && snap2.ids) || []
-            var by2 = (snap2 && snap2.byId) || {}
-            for (var j = 0; j < ids2.length; j++) {
-              if (by2[ids2[j]] && !by2[ids2[j]].blank) { sessionId2 = ids2[j]; break }
+        // 点击内部按钮/图标：放行原生行为；若确为 remove 则清理内存里的恢复记录。
+        var btn = target.closest('button, [role="button"], svg, path')
+        if (btn) {
+          var b = (btn.tagName === 'BUTTON' || (btn.getAttribute && btn.getAttribute('role') === 'button'))
+            ? btn
+            : (btn.closest ? btn.closest('button, [role="button"]') : null)
+          var label = b ? ((b.getAttribute('aria-label') || b.getAttribute('title') || '') + '') : ''
+          if (/remove|delete|clear|移除|删除/i.test(label)) {
+            for (var mi = pasteOriginals.length - 1; mi >= 0; mi--) {
+              if (pasteOriginals[mi].name === name) pasteOriginals.splice(mi, 1)
             }
-          } catch (err) { return }
+          }
+          return
         }
+        // 点击卡片主体：确保恢复按钮就位，并打开右侧栏预览。
+        ensurePasteRestoreButton(cardEl, name)
+        var sessionId2 = sessionIdFromElement(cardEl)
         if (!sessionId2) return
-        // 统一预览逻辑走下方。
         openComposerAttachment(sessionId2, name)
       }, true)
 
