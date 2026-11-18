@@ -32,15 +32,19 @@
 - **删除归档会话 / Delete Archived Session**
   - 每条归档会话行的 hover 操作区在“取消归档”旁新增 **删除会话 / Delete session**，会话右键菜单也有同名项。
   - 点击后二次确认，红字标注**删除后不可恢复**；取消、Esc、点遮罩都不会发出请求。
-  - 服务端顺序固定：校验归档态 → 拒绝活动会话 → 走公开 API 取消归档 → 删整个会话目录（含全部格式 generation）→ 清理投影缓存（目录布局与单文件布局都探测）。
-  - 只对归档会话开放；未归档会话服务端返回 `not-archived`，日志与归档状态都不动。
-  - 逐条返回 `{id, ok, stage, error}`，部分失败不回滚已删项；失败原因会说明会话当前是“未归档但日志仍在”，可重试。
+  - 服务端顺序固定：校验归档态 → 用 `stat().location` 解析目录 → 仅拒绝“仍在运行”的 Agent → 释放空闲但仍驻留的 Agent → 删整个会话目录（含全部格式 generation）→ 清理投影缓存（目录布局与单文件布局都探测）→ 取消归档 → detach 工作区记账并清掉 registry header 索引。
+  - 只对归档会话开放；未归档且日志仍在时会话返回 `not-archived`，日志与归档状态都不动。
+  - 删除后浏览器立即隐藏该行、调用 `ctx.sessions.refresh()` 重拉会话目录；宿主同时通过 workspace detach 推送新的 `sessionIds`，所以行不会留在侧边栏。
+  - hover 的删除按钮在点击时**重新从当前行解析会话 id**，并再次校验该 id 仍处于归档态；避免 React 复用行动作区时误删相邻会话。删除前若会话仍驻留 SessionStore，宿主会先释放空闲 Agent，再通过 store entry 的 detach 清掉 idle 引用。
+  - 幂等：日志已不存在时仍会清理归档标记与工作区记账并返回成功；重复点击不再报 `not-found`。
+  - 逐条返回 `{id, ok, stage, bytes, alreadyGone?, detached?, filesRemoved?, error?}`，部分失败不回滚已删项。
 
 - **只读查看归档会话 / Read-only View of Archived Session**
-  - 点击归档会话行（或 hover 的“查看”按钮）打开只读查看器：标题、`cwd`、创建时间、只读提示条、按序渲染的对话事件。
-  - **不恢复 Agent、不写日志、不产生模型请求**：只走 `sessionPersistence.open(id, 'read')`，读完立即释放句柄。
-  - 每页 50 条，游标继续加载；单条正文截断 8 KiB 并标注，单次响应上限 1 MiB。
-  - 无输入框、无发送按钮、无附件入口；格式需迁移 / 会话被占用 / 不存在分别给出明确提示。
+  - 点击归档会话行与点击未归档会话**效果一致**：直接使用 DSH 原生聊天窗口显示历史与工具消息，不再弹窗、不再覆盖面板；不再额外注入“查看”按钮。
+  - 查看时**不取消归档、不写宿主归档状态**：只临时包装 DSH 导航服务的 `clearArchivedCurrent`（列表变化时清掉“当前选中的归档会话”的那段策略），查看期间让它返回 `false`，退出时还原。因此归档行、删除按钮、宿主归档门禁全部保持不变，也没有 unarchive/archive 往返和侧边栏重排，切换不卡。
+  - 通过会话 scope 的 `conversation.blocks.set` 加只读块，原生输入框变为禁用状态，占位文案说明“仅可查看”；宿主仍认为会话已归档，归档门禁继续生效。
+  - 归档行仍在归档列表里，所以**可以直接删除正在查看的归档会话**（确认后宿主释放 Agent/live entry、删日志，客户端切到新会话视图）。
+  - 若 DSH 未来移除该导航方法，插件会拒绝打开并提示，而不是退化为“取消归档”，避免产生未归档会话。
 
 - **点击附件在右侧栏查看 / Click Attachment to Preview in Right Sidebar**
   - 用户消息中的文件附件卡片现在可点击，与查看源码文件一样在右侧栏打开预览。
@@ -107,14 +111,14 @@ plugins:
 6. 选择 **迁移工作区…**：路径正常会提示无需迁移；原目录已被移动时才进入向导。填写已存在的目标目录并先点“预检”；确认摘要后点“开始迁移”。若显示“迁移完成，无需重启”，侧边栏会在事件流更新后出现新工作区；若提示需要重启，重启 DSH 后自动完成。
 7. 在输入框**粘贴超长文本**（>2000 字符），自动转为 `.txt` 文件附件发送；附件卡片下方出现“粘贴原文至输入框”可一键还原。
 8. 发送超长文本消息后，气泡自动折叠，点“展开”查看全文。
-9. 在“显示已归档”视图中 hover 一条归档会话：点**查看**打开只读查看器，点**删除会话**删除（需二次确认，不可恢复）。
+9. 在“显示已归档”视图中点击归档会话行：像点普通会话一样直接打开原生聊天窗口，输入框显示为禁用状态；切到其他会话后自动恢复归档。点 hover 的**删除会话**删除（需二次确认，不可恢复，按钮按当前行重新取 id）。
 
 ## File Structure
 
 ```text
 index.js          # Host half entry: injection facts, migration HTTP API, session delete/read API, boot recovery.
 migration/        # Host-only migration engine: paths, zstd log rewrite, journal, registry compat, orchestration.
-sessions/         # Host-only archived-session services: local-only HTTP guard, path resolution, delete, read-only projection.
+sessions/         # Host-only archived-session services: local-only HTTP guard, path resolution, delete, cache/workspace eviction, read-only projection.
 test/             # node:test unit tests (run: node --test).
 client.js         # Browser half: menu injection, batch-archive dialog, migration wizard/status banner.
 cordis.patch.yml  # Cordis bundle patch used by DSH to load the browser plugin.
@@ -129,8 +133,8 @@ cordis.patch.yml  # Cordis bundle patch used by DSH to load the browser plugin.
 - **Paste-to-file**: 监听 `data-composer-input` 的 paste 事件，纯文本超阈值即 `preventDefault`，经 `conversation.createDrafts` 生成 `<首行50字符>.txt` 附件并 `conversation.input.addAttachments` 加入草稿；失败时原文回填输入框。
 - **Paste restore**: paste 转文件时把原文、草稿 id、活引用（`shell`/`conversation`）存入记录；点恢复按钮时直接用这些引用把原文 `setDraft` 回输入框并 `removeAttachment` + `releaseDraftAttachment` 释放附件（不重新解析服务，避免 inactive context 报错）。
 - **Migration**: 预检枚举 `workspace.sessionIds` 与所有 `header.cwd === oldPath` 的日志（含 subagent 子会话），逐会话取 `sessionPersistence` 写租约、rename 目录到新 `projectKey`、只重压首帧 header 并原样拷贝其余帧。完成阶段先 `stat` 新 header 刷新 registry 私有索引（feature-detect `indexHeader` 或索引 Map），再走公开 API：`create(path, markerTitle)` → `setTitle` → 逆序 `attachSession` → `insertBefore` → `delete` 旧记录。失败或索引不可用则写 `awaiting-restart` journal，由下一次启动完成。journal 在 `<DSH_HOME>/workspace-toolkit/migrations/`。
-- **Delete archived session**: 浏览器 `POST /api/workspace-toolkit/sessions/delete`（先校验 `Host`/`Origin` 为本机，否则 403）。宿主逐 id 执行“归档校验 → 活动检测 → `workspaceRegistry.unarchiveSession` → `sessionPersistence.stat().location` 推导会话目录 → 删目录 → 清 `session_projcache` 两种布局”；路径不自行实现 `projectKey`，并校验解析结果仍在 `<DSH_HOME>/sessions` 下。
-- **View archived session**: `POST /api/workspace-toolkit/sessions/read` 用 `open(id, 'read')` 分页读取事件，投影成 user/assistant/tool 三种纯文本行；不 resume、不 append，格式需迁移或存在写租约时直接返回原因。
+- **Delete archived session**: 浏览器 `POST /api/workspace-toolkit/sessions/delete`（先校验 `Host`/`Origin` 为本机，否则 403）。宿主逐 id 执行“归档校验 → `sessionPersistence.stat().location` 推导目录 → 仅运行中 Agent 拒绝 → 空闲 Agent `dispose()` 并等 Session 离场 → 删目录 → 清 `session_projcache` → `workspaceRegistry.unarchiveSession` → `WorkspaceEntity.detachSession` + 清 `headers`/`sessionPaths` 索引”；路径不自行实现 `projectKey`，并校验解析结果仍在 `<DSH_HOME>/sessions` 下。
+- **View archived session**: 浏览器临时包装 `ctx.uiWorkspace.clearArchivedCurrent` 为返回 `false`（DSH 用它清掉列表变化时仍处于归档态的当前选中），再 `uiWorkspace.openSession(id)` 复用原生 Chat；通过会话 scope 的 `conversation.blocks.set(id, { reason })` 让原生输入框进入只读态。离开时清除 block 并还原原方法。整个过程不调用 `unarchiveSession/archiveSession`，归档行与宿主状态不变。宿主仍保留 `/sessions/read` 只读诊断接口，但浏览器 UI 不再使用。
 - **Bubble collapse**: 监听 `data-chat-flow-kind="user"` 行，行总文本超 2000 时定位气泡加 `max-height` 限高 + 渐隐；按钮切换 `dsh-long-text-clamp` class 展开/收起。多轮初始扫描（400ms/1.5s/3s）+ 统一防抖 MutationObserver 覆盖历史加载与渐进渲染，按行 key 去重防重复注入。
 - **Performance**: 3 个全量 MutationObserver 合并为 1 个统一 observer，一次遍历按需分流（菜单注入 / composer 卡片 / 气泡折叠）；文本长度统计排除插件自身按钮文本，避免自增触发无限重评估。
 - **Internationalization**: 文案根据浏览器 `navigator.language` 在中文与英文间自动切换；暂时无法跟随 DSH 内部语言热切换。
@@ -148,7 +152,11 @@ cordis.patch.yml  # Cordis bundle patch used by DSH to load the browser plugin.
 - 会话格式低于 v4 或压缩/目录布局不受支持时拒绝迁移，不做部分迁移。
 - 删除入口依赖 DSH 归档行的两个耦合点：`aria-label` 为“取消归档 / Unarchive session”的 hover 按钮，以及行的 `data-row-key="session:<id>"`。任一失配时删除/查看入口静默跳过（会话右键菜单仍可用），不会让插件抛错。
 - 两个会话路由只接受本机请求：`Host` 必须是 `localhost` / `127.0.0.1` / `[::1]`，`Origin` 若存在必须同源，否则 403。用 `--host 0.0.0.0` 暴露到局域网时这两个接口仍然不可远程调用。
-- 删除绕过 `SessionPersistence` 抽象直接删文件（DSH 目前没有删除 API）；若未来 DSH 提供 `deleteSession`，把 `sessions/delete.js` 的落盘步骤替换即可。
+- `index.js`/`sessions/*` 属于宿主半，升级后必须重启 DSH 才生效；只刷新页面会继续运行旧删除逻辑。客户端在删除失败且宿主 build 标记缺失时会提示“宿主插件还是旧版本，请重启 DSH”。
+- 删除绕过 `SessionPersistence` 抽象直接删文件（DSH 目前没有删除 API）；若未来 DSH 提供 `deleteSession`，把 `sessions/delete.js` 的落盘步骤替换即可。删除会先 dispose 空闲/残留 Agent，并调用 SessionStore entry 的私有 detach 清理仍驻留的 idle 会话；若目标会话正被某个客户端打开，该视图会被断开。
+- 删除后的内存清理依赖 Workspace registry 的私有索引字段（`headers`/`sessionPaths`）与 `WorkspaceEntity.detachSession`；字段改名时 `sessions/evict.js` 会跳过这一步（日志仍删掉，行可能留到刷新/重启），不会让删除整体失败。
+- 归档查看依赖导航服务的私有 `clearArchivedCurrent` 方法；方法改名或移除时插件拒绝打开归档会话并提示，不会退化成取消归档。查看期间会话仍留在归档列表，可直接删除。
+- 只读输入框依赖 DSH 的 `conversation.blocks` 契约；该契约改名时，插件会退化为给 `[data-composer-seat]` 加 `inert`（输入仍禁用，但没有占位文案）。
 
 ## Migration recovery
 

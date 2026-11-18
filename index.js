@@ -246,6 +246,8 @@ function createSessionReadHandler(services, logger) {
       const result = await readArchivedSession(services, {
         id: body.id,
         after: body.after,
+        before: body.before,
+        tail: body.tail === true,
         limit: body.limit,
       })
       sendJson(response, 200, { ok: true, ...result })
@@ -271,6 +273,7 @@ export function apply(ctx) {
         maxPasteRestoreBytes: MAX_PASTE_RESTORE_BYTES,
         sessionDeleteApiPath: SESSION_DELETE_API_PATH,
         sessionReadApiPath: SESSION_READ_API_PATH,
+        build: '0.4.0+force-detach',
       },
     })
   })
@@ -298,6 +301,17 @@ export function apply(ctx) {
       workspaceRegistry: scope.workspaceRegistry,
       sessionPersistence: scope.sessionPersistence,
       sessions: scope.sessions,
+      // Optional: an idle Agent is released before its log is deleted, so the
+      // client catalog and the store entry go away with the files. A profile
+      // without the Agent registry still deletes, rejecting only a live store
+      // entry it cannot prove idle.
+      get agents() {
+        try {
+          return typeof scope.get === 'function' ? scope.get('agents') : undefined
+        } catch {
+          return undefined
+        }
+      },
       waterfall: typeof ctx.waterfall === 'function' ? ((...args) => ctx.waterfall(...args)) : undefined,
     }
     let queue = Promise.resolve()

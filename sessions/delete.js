@@ -1,12 +1,18 @@
 /**
- * Delete archived sessions: unarchive through the public registry API, then
- * remove the log directory and the derived projection-cache record.
+ * Delete archived sessions: remove the log directory, then clear every derived
+ * fact that would otherwise keep the row visible.
  *
- * Order is fixed (design D2): validate archived -> reject active -> unarchive ->
- * resolve path -> delete files -> clear cache. A failure after unarchive leaves
- * the session "unarchived but still on disk", which the error text spells out.
+ * Order is fixed: validate archived -> resolve the artifact -> reject running
+ * work -> release an idle Agent -> delete files -> clear the projection cache
+ * -> unarchive -> detach the Workspace record + prune the registry header
+ * index. Files go first so a failed cleanup leaves the session archived (and
+ * therefore retryable) instead of surfacing a log-less conversation.
+ *
+ * A retry is idempotent: a session whose artifact is already gone still gets
+ * its archive flag and Workspace accounting cleaned, and reports success.
  */
 import { httpError } from './http.js'
+import { forceDetachLiveSession, forgetSession, waitForSessionGone } from './evict.js'
 import {
   removeProjectionCache, removeSessionDirectory, resolveSessionDir,
 } from './paths.js'
@@ -33,8 +39,40 @@ export function archivedIdSet(workspaceRegistry) {
 }
 
 /**
- * Delete one archived session.
+ * Resolve a session's directory without turning a missing artifact into a
+ * failed request; an earlier deletion legitimately leaves no directory.
  * @param services - host services.
+ * @param dshHome - DSH config root.
+ * @param sessionId - stored session id.
+ * @returns the resolved directory or `{ missing: true }`.
+ */
+async function probeSessionDir(services, dshHome, sessionId) {
+  try {
+    return { missing: false, resolved: await resolveSessionDir(services, dshHome, sessionId) }
+  } catch (error) {
+    if (codeOf(error) === 'sessions/not-found') return { missing: true, resolved: null }
+    throw error
+  }
+}
+
+/** The Agent bound to a session, when the Agent registry is available. */
+function agentOf(services, sessionId) {
+  const agents = services && services.agents
+  return agents && typeof agents.get === 'function' ? agents.get(sessionId) : undefined
+}
+
+/** Remove the projection-cache record for one id; cache loss is only a warning. */
+async function clearCache(dshHome, sessionId) {
+  try {
+    return await removeProjectionCache(dshHome, sessionId)
+  } catch (error) {
+    return ['projection cache: ' + messageOf(error)]
+  }
+}
+
+/**
+ * Delete one archived session.
+ * @param services - host services (workspaceRegistry, sessionPersistence, sessions, agents).
  * @param dshHome - DSH config root.
  * @param sessionId - candidate id.
  * @param archived - archived id set captured once per request.
@@ -44,39 +82,115 @@ async function deleteOne(services, dshHome, sessionId, archived) {
   let stage = 'validate'
   try {
     if (!archived.has(sessionId)) {
-      throw httpError('sessions/not-archived', 'session ' + sessionId + ' is not archived')
+      // A prior request may have removed the artifact before its archive flag
+      // was cleared; only that state is a successful retry, never a normal
+      // unarchived session.
+      const probe = await probeSessionDir(services, dshHome, sessionId)
+      if (!probe.missing) {
+        throw httpError('sessions/not-archived', 'session ' + sessionId + ' is not archived')
+      }
+      stage = 'projection-cache'
+      await clearCache(dshHome, sessionId)
+      stage = 'unarchive'
+      await services.workspaceRegistry.unarchiveSession(sessionId)
+      stage = 'workspace'
+      const cleanup = await forgetSession(services, sessionId)
+      return {
+        result: {
+          id: sessionId,
+          ok: true,
+          stage: 'already-gone',
+          bytes: 0,
+          alreadyGone: true,
+          ...(cleanup.detached ? { detached: true } : {}),
+        },
+        bytes: 0,
+      }
     }
+
+    stage = 'resolve-path'
+    const probe = await probeSessionDir(services, dshHome, sessionId)
+    const resolved = probe.resolved
+    const missing = probe.missing
+
     stage = 'activity'
-    const live = services.sessions && typeof services.sessions.get === 'function'
+    const agent = agentOf(services, sessionId)
+    if (agent !== undefined && agent !== null) {
+      if (agent.status === 'running' && typeof agent.dispose !== 'function') {
+        throw httpError('sessions/active', 'session ' + sessionId + ' is still running')
+      }
+      if (typeof agent.dispose === 'function') {
+        // An archived Session may keep its Agent resident after a stop, and a
+        // race may still report it running. Deleting owns the Session now, so
+        // dispose it (stops the loop, removes the store entry, emits
+        // session/disposed) before touching files.
+        try {
+          await agent.dispose()
+        } catch {
+          // The liveness re-checks below are the real gate.
+        }
+        await waitForSessionGone(services, sessionId, 3000)
+      }
+    }
+    let live = services.sessions && typeof services.sessions.get === 'function'
       ? services.sessions.get(sessionId)
       : undefined
+    let releasedLive = false
     if (live !== undefined && live !== null) {
-      throw httpError('sessions/active', 'session ' + sessionId + ' still has active work')
+      // An idle entry can outlive its Agent (a browser retain, or a restore
+      // owned elsewhere). Deletion owns the Session now, so release the entry
+      // through its own single-shot detach and re-check before touching files.
+      if (forceDetachLiveSession(services, sessionId)) {
+        releasedLive = true
+        await waitForSessionGone(services, sessionId, 1000)
+      }
+      live = services.sessions.get(sessionId)
     }
+    if (live !== undefined && live !== null) {
+      throw httpError(
+        'sessions/active',
+        'session ' + sessionId + ' is still open in a client; close it and retry',
+      )
+    }
+
+    let bytes = 0
+    if (!missing) {
+      stage = 'remove-files'
+      bytes = await removeSessionDirectory(resolved.dir)
+    }
+    stage = 'projection-cache'
+    const warnings = await clearCache(dshHome, sessionId)
+
     stage = 'unarchive'
     await services.workspaceRegistry.unarchiveSession(sessionId)
-    stage = 'resolve-path'
-    const resolved = await resolveSessionDir(services, dshHome, sessionId)
-    stage = 'remove-files'
-    const bytes = await removeSessionDirectory(resolved.dir)
-    stage = 'projection-cache'
-    const warnings = await removeProjectionCache(dshHome, sessionId)
+    stage = 'workspace'
+    const cleanup = await forgetSession(services, sessionId)
+
     return {
-      result: { id: sessionId, ok: true, stage: 'done', bytes, ...(warnings.length > 0 ? { warnings } : {}) },
+      result: {
+        id: sessionId,
+        ok: true,
+        stage: 'done',
+        bytes,
+        ...(missing ? { alreadyGone: true } : {}),
+        ...(releasedLive ? { releasedLive: true } : {}),
+        ...(cleanup.detached ? { detached: true } : {}),
+        ...(warnings.length > 0 ? { warnings } : {}),
+      },
       bytes,
     }
   } catch (error) {
-    const unarchived = stage !== 'validate' && stage !== 'activity'
-    const note = unarchived
-      ? ' (the session is now unarchived but its logs are still on disk; retry the deletion or keep using it)'
+    const filesRemoved = stage === 'projection-cache' || stage === 'unarchive' || stage === 'workspace'
+    const note = filesRemoved
+      ? ' (the logs were removed; retry the deletion to finish workspace cleanup)'
       : ''
     return {
       result: {
         id: sessionId,
         ok: false,
         stage,
+        filesRemoved,
         error: { code: codeOf(error), message: messageOf(error) + note },
-        unarchived,
       },
       bytes: 0,
     }
@@ -85,7 +199,7 @@ async function deleteOne(services, dshHome, sessionId, archived) {
 
 /**
  * Delete every requested archived session, independently per id.
- * @param services - host services (workspaceRegistry, sessionPersistence, sessions).
+ * @param services - host services (workspaceRegistry, sessionPersistence, sessions, agents).
  * @param dshHome - DSH config root.
  * @param ids - candidate session ids.
  * @returns ordered per-id results and the total released bytes.

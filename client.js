@@ -85,19 +85,23 @@ window.__ModuleLoader__.load({
       deleting: isZh() ? '删除中…' : 'Deleting…',
       deleted: isZh() ? '已删除 {n} 个会话，释放 {bytes}' : 'Deleted {n} sessions, freed {bytes}',
       deleteFailed: isZh() ? '删除失败：' : 'Delete failed: ',
-      viewSession: isZh() ? '查看' : 'View',
-      viewerTitle: isZh() ? '归档会话' : 'Archived session',
-      viewerReadonly: isZh() ? '该会话已归档，查看器为只读' : 'This session is archived; the viewer is read-only',
-      viewerLoading: isZh() ? '加载中…' : 'Loading…',
-      viewerLoadMore: isZh() ? '加载更多' : 'Load more',
-      viewerNoEvents: isZh() ? '该会话没有可显示的对话内容。' : 'This session has no displayable conversation content.',
-      viewerMigration: isZh() ? '该会话需要先由较新版本的 DSH 迁移才能查看。' : 'This session must be migrated by a newer DSH before it can be viewed.',
-      viewerOwned: isZh() ? '会话正被占用，请稍后重试。' : 'The session is currently in use. Try again later.',
-      viewerMissing: isZh() ? '会话已不存在，请刷新侧边栏。' : 'The session no longer exists. Refresh the sidebar.',
-      viewerFailed: isZh() ? '读取失败：' : 'Read failed: ',
-      viewerTruncated: isZh() ? '已截断' : 'truncated',
-      viewerToolCall: isZh() ? '工具调用' : 'Tool call',
-      viewerCreatedAt: isZh() ? '创建于' : 'Created',
+      deleteFailedActive: isZh()
+        ? '会话仍在运行或被打开，无法删除。请先停止它、切换到其他会话后重试。'
+        : 'The session is still running or open. Stop it and switch away before deleting.',
+      deleteFailedNotArchived: isZh()
+        ? '该会话已不是归档状态，请刷新侧边栏后重试。'
+        : 'The session is no longer archived. Refresh the sidebar and retry.',
+      deleteFailedMigration: isZh()
+        ? '该会话需要先由较新版本的 DSH 迁移后才能删除。'
+        : 'This session must be migrated by a newer DSH before it can be deleted.',
+      deleteDoneGone: isZh() ? '该会话已被删除' : 'The session was already deleted',
+      readonlyComposerPlaceholder: isZh()
+        ? '该会话已归档，仅供查看；切换到其他会话后恢复编辑'
+        : 'This session is archived. View only — editing returns after you switch away.',
+      viewFailed: isZh() ? '打开会话失败：' : 'Could not open the session: ',
+      deleteFailedStaleHost: isZh()
+        ? '宿主插件还是旧版本，请重启 DSH 后再试。'
+        : 'The host plugin is still the old build. Restart DSH and try again.',
       viewerUntitled: isZh() ? '未命名会话' : 'Untitled session'
     }
 
@@ -248,7 +252,10 @@ window.__ModuleLoader__.load({
       pluginBoot = {
         attachmentsRoot: (cfg && cfg.attachmentsRoot) || null,
         pasteToFileLimit: (cfg && typeof cfg.pasteToFileLimit === 'number') ? cfg.pasteToFileLimit : 2000,
-        maxPasteRestoreBytes: (cfg && typeof cfg.maxPasteRestoreBytes === 'number') ? cfg.maxPasteRestoreBytes : 614400
+        maxPasteRestoreBytes: (cfg && typeof cfg.maxPasteRestoreBytes === 'number') ? cfg.maxPasteRestoreBytes : 614400,
+        sessionDeleteApiPath: (cfg && cfg.sessionDeleteApiPath) || null,
+        sessionReadApiPath: (cfg && cfg.sessionReadApiPath) || null,
+        build: (cfg && cfg.build) || null
       }
       return pluginBoot
     }
@@ -1132,19 +1139,15 @@ window.__ModuleLoader__.load({
     // Both entry points ride the archived row's existing "unarchive" button, so
     // they inherit its hover visibility and layout. Every selector miss is a
     // silent skip (design D8): a DSH front-end update must not break the plugin.
-    var ARCHIVED_VIEW_ICON_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>'
     var ARCHIVED_DELETE_ICON_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"></path><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>'
     var DEFAULT_SESSION_DELETE_PATH = '/api/workspace-toolkit/sessions/delete'
-    var DEFAULT_SESSION_READ_PATH = '/api/workspace-toolkit/sessions/read'
     var archivedScanScheduled = false
-    var viewerLayer = null
     var deleteConfirmLayer = null
-    var viewerState = null
+    var deletedSessionIds = Object.create(null)
 
-    function sessionApiPath(kind) {
+    function sessionDeletePath() {
       var config = toolkitConfig() || {}
-      if (kind === 'delete') return config.sessionDeleteApiPath || DEFAULT_SESSION_DELETE_PATH
-      return config.sessionReadApiPath || DEFAULT_SESSION_READ_PATH
+      return config.sessionDeleteApiPath || DEFAULT_SESSION_DELETE_PATH
     }
 
     function postSessionJson(path, payload) {
@@ -1197,12 +1200,18 @@ window.__ModuleLoader__.load({
       return false
     }
 
+    // The Session currently open through the archived row while the Host still
+    // archives it. The delete affordance stays available for it.
+    function isCurrentArchivedView(id) {
+      return !!(archivedView && String(archivedView.id) === String(id))
+    }
+
     function isUnarchiveButton(btn) {
       var label = btn.getAttribute('aria-label') || ''
       return label.indexOf('取消归档') !== -1 || label.indexOf('Unarchive session') !== -1
     }
 
-    function makeArchivedRowButton(label, svg, marker, onClick) {
+    function makeArchivedRowButton(label, svg, marker, id, onClick) {
       var button = document.createElement('button')
       button.type = 'button'
       button.className = 'dsh-wst-row-action'
@@ -1210,16 +1219,27 @@ window.__ModuleLoader__.load({
       button.setAttribute('title', label)
       button.setAttribute(marker, 'true')
       button.setAttribute('data-dsh-archived-action', 'true')
+      button.setAttribute('data-dsh-archived-action-id', String(id))
       button.innerHTML = svg
       button.addEventListener('click', function (event) {
         event.preventDefault()
         event.stopPropagation()
-        onClick()
+        // React may recycle this action host for another row between the
+        // debounced scan and the click; always resolve the Session from the
+        // row that contains the button right now.
+        var currentId = sessionIdFromRow(button)
+        if (!currentId || (!isArchivedSessionId(currentId) && !isCurrentArchivedView(currentId))) {
+          scheduleArchivedScan()
+          return
+        }
+        onClick(currentId)
       })
       return button
     }
 
     // Inject the view/delete buttons beside the existing unarchive button.
+    // The action host is React-owned and may be reused for a different row, so
+    // a stale marker with another id is replaced instead of trusted.
     function injectArchivedRowActions(scopeEl) {
       var root = scopeEl || document
       if (!root.querySelectorAll) return
@@ -1228,14 +1248,19 @@ window.__ModuleLoader__.load({
         var button = buttons[i]
         if (!isUnarchiveButton(button)) continue
         var host = button.parentElement
-        if (!host || host.querySelector('[data-dsh-archived-action]')) continue
+        if (!host) continue
         var id = sessionIdFromRow(button)
-        if (!id) continue
-        host.appendChild(makeArchivedRowButton(LABELS.viewSession, ARCHIVED_VIEW_ICON_SVG, 'data-dsh-view-session', function () {
-          openSessionViewer(id)
-        }))
-        host.appendChild(makeArchivedRowButton(LABELS.deleteSession, ARCHIVED_DELETE_ICON_SVG, 'data-dsh-delete-session', function () {
-          openDeleteConfirm(id)
+        if (!id || deletedSessionIds[id]) continue
+        var injected = host.querySelector('[data-dsh-archived-action]')
+        if (injected !== null) {
+          if (injected.getAttribute('data-dsh-archived-action-id') === String(id)) continue
+          var stale = host.querySelectorAll('[data-dsh-archived-action]')
+          for (var s = 0; s < stale.length; s++) {
+            if (stale[s].parentNode) stale[s].parentNode.removeChild(stale[s])
+          }
+        }
+        host.appendChild(makeArchivedRowButton(LABELS.deleteSession, ARCHIVED_DELETE_ICON_SVG, 'data-dsh-delete-session', id, function (targetId) {
+          openDeleteConfirm(targetId)
         }))
       }
     }
@@ -1245,6 +1270,7 @@ window.__ModuleLoader__.load({
       archivedScanScheduled = true
       setTimeout(function () {
         archivedScanScheduled = false
+        hideDeletedRows()
         injectArchivedRowActions(document)
       }, 120)
     }
@@ -1258,17 +1284,10 @@ window.__ModuleLoader__.load({
       deleteConfirmLayer = null
     }
 
-    function closeSessionViewer() {
-      removeLayer(viewerLayer)
-      viewerLayer = null
-      viewerState = null
-    }
-
     // One toolbar layer at a time: the archive and migration dialogs own their
     // own closers, so every new layer closes them first.
     function closeToolbarLayers() {
       closeDeleteConfirm()
-      closeSessionViewer()
       closeArchiveDialog()
       closeMigrationDialog()
     }
@@ -1308,6 +1327,66 @@ window.__ModuleLoader__.load({
       }
     }
 
+    // ---- Delete bookkeeping ----
+    function deleteFailureText(code, error) {
+      if (code === 'sessions/active') {
+        var detail = error && error.message ? ' ' + String(error.message) : ''
+        var build = (toolkitConfig() || {}).build
+        if (build !== '0.4.0+force-detach') {
+          return LABELS.deleteFailedActive + detail + ' ' + LABELS.deleteFailedStaleHost
+        }
+        return LABELS.deleteFailedActive + detail
+      }
+      if (code === 'sessions/not-archived') return LABELS.deleteFailedNotArchived
+      if (code === 'sessions/migration-required') return LABELS.deleteFailedMigration
+      var message = error && error.message ? String(error.message) : String(error)
+      return LABELS.deleteFailed + message
+    }
+
+    function refreshSessionCatalog() {
+      try {
+        if (ctx && ctx.sessions && typeof ctx.sessions.refresh === 'function') {
+          var refreshing = ctx.sessions.refresh()
+          if (refreshing && typeof refreshing.catch === 'function') refreshing.catch(function () {})
+        }
+      } catch (err) { /* optional service */ }
+    }
+
+    // React owns the row; hiding it by attribute keeps reconciliation intact
+    // while giving immediate feedback, and the rescan re-hides a recycled row.
+    function hideDeletedRows() {
+      var rows = document.querySelectorAll('[data-row-key^="session:"]')
+      for (var i = 0; i < rows.length; i++) {
+        var row = rows[i]
+        var key = row.getAttribute('data-row-key') || ''
+        var id = key.slice('session:'.length)
+        if (deletedSessionIds[id]) {
+          row.setAttribute('data-dsh-wst-deleted', 'true')
+        } else if (row.hasAttribute('data-dsh-wst-deleted')) {
+          row.removeAttribute('data-dsh-wst-deleted')
+        }
+      }
+    }
+
+    function markSessionDeleted(id) {
+      deletedSessionIds[id] = true
+      archivedSessionIds = archivedSessionIds.filter(function (value) {
+        return String(value) !== String(id)
+      })
+      hideDeletedRows()
+      if (archivedView && String(archivedView.id) === String(id)) finishArchivedView()
+      var host = document.querySelector('[data-conversation-content]')
+      var current = host ? host.getAttribute('data-conversation-session') : null
+      if (current !== null && String(current) === String(id)
+        && ctx && ctx.uiWorkspace && typeof ctx.uiWorkspace.startSession === 'function') {
+        // The deleted Session owned the main view; move to a fresh conversation
+        // instead of leaving a detached transcript behind.
+        try { ctx.uiWorkspace.startSession() } catch (err) { /* optional */ }
+      }
+      refreshSessionCatalog()
+      scheduleArchivedScan()
+    }
+
     // ---- Delete confirmation ----
     function openDeleteConfirm(id) {
       closeToolbarLayers()
@@ -1340,27 +1419,86 @@ window.__ModuleLoader__.load({
       deleteConfirmLayer = shell.overlay
 
       function settle() { closeDeleteConfirm() }
+      function finishDeleted(result) {
+        var bytes = result && typeof result.bytes === 'number' ? result.bytes : 0
+        // Trust the Host's own result id over the dialog's captured id, so the
+        // hidden row always matches what was actually deleted.
+        var deletedId = result && typeof result.id === 'string' && result.id !== '' ? result.id : id
+        markSessionDeleted(deletedId)
+        settle()
+        showToast(bytes > 0
+          ? template(LABELS.deleted, { n: 1, bytes: formatBytes(bytes) })
+          : LABELS.deleteDoneGone)
+      }
       function submit() {
         if (confirm.disabled) return
-        confirm.disabled = true
-        cancel.disabled = true
-        confirm.textContent = LABELS.deleting
-        postSessionJson(sessionApiPath('delete'), { ids: [id] }).then(function (data) {
-          var result = data.results && data.results[0]
-          if (!result || result.ok !== true) {
-            var failure = result && result.error ? (result.error.message || result.error.code) : 'unknown error'
-            throw new Error(failure)
-          }
-          settle()
-          showToast(template(LABELS.deleted, { n: 1, bytes: formatBytes(result.bytes || 0) }))
-          // The registry's unarchive already pushed the row change to the
-          // sidebar; a rescan just repairs any injected buttons left behind.
-          scheduleArchivedScan()
-        }).catch(function (error) {
+        var viewingThis = isCurrentArchivedView(id)
+        var currentNode = document.querySelector('[data-conversation-content]')
+        var currentId = currentNode ? currentNode.getAttribute('data-conversation-session') : null
+        if (currentId !== null && String(currentId) === String(id) && !viewingThis) {
           confirm.disabled = false
           cancel.disabled = false
           confirm.textContent = LABELS.deleteAction
-          warning.textContent = LABELS.deleteFailed + String(error && error.message ? error.message : error)
+          warning.textContent = LABELS.deleteFailedActive
+          return
+        }
+        if ((!isArchivedSessionId(id) && !viewingThis) || deletedSessionIds[id]) {
+          confirm.disabled = false
+          cancel.disabled = false
+          confirm.textContent = LABELS.deleteAction
+          warning.textContent = LABELS.deleteFailedNotArchived
+          scheduleArchivedScan()
+          return
+        }
+        if (viewingThis && (toolkitConfig() || {}).build !== '0.4.0+force-detach') {
+          // Deleting the Session that owns the main view needs the Host-side
+          // force-detach path; an older Host would answer "still open".
+          confirm.disabled = false
+          cancel.disabled = false
+          confirm.textContent = LABELS.deleteAction
+          warning.textContent = LABELS.deleteFailedStaleHost
+          return
+        }
+        confirm.disabled = true
+        cancel.disabled = true
+        confirm.textContent = LABELS.deleting
+        postSessionJson(sessionDeletePath(), { ids: [id] }).then(function (data) {
+          var result = data.results && data.results[0]
+          if (!result || result.ok !== true) {
+            var code = result && result.error && result.error.code ? String(result.error.code) : ''
+            // A session the Host cannot find is already gone; an unarchived
+            // session whose files still exist is a refusal, not a success.
+            if (code === 'sessions/not-found') {
+              finishDeleted(result)
+              return
+            }
+            var failure = new Error(result && result.error ? (result.error.message || code) : 'unknown error')
+            failure.code = code
+            failure.result = result
+            throw failure
+          }
+          finishDeleted(result)
+        }).catch(function (error) {
+          var code = error && error.code ? String(error.code) : ''
+          var result = error && error.result ? error.result : null
+          if (result && result.filesRemoved === true) {
+            // The log is gone; keep the row from lingering and leave a retry
+            // notice rather than pretending the whole deletion failed.
+            markSessionDeleted(typeof result.id === 'string' && result.id !== '' ? result.id : id)
+            warning.textContent = LABELS.deleteFailed + LABELS.deleteDoneGone
+            confirm.disabled = true
+            cancel.disabled = false
+            showToast(LABELS.deleteDoneGone)
+            return
+          }
+          confirm.disabled = false
+          cancel.disabled = false
+          confirm.textContent = LABELS.deleteAction
+          if (typeof console !== 'undefined' && console.warn) {
+            var build = (toolkitConfig() || {}).build || 'unknown'
+            console.warn('[workspace-toolkit] delete failed', { id: id, code: code, message: error && error.message, hostBuild: build })
+          }
+          warning.textContent = deleteFailureText(code, error)
         })
       }
       cancel.addEventListener('click', settle)
@@ -1371,153 +1509,197 @@ window.__ModuleLoader__.load({
       })
     }
 
-    // ---- Read-only viewer ----
-    function renderViewerHeader(state, session) {
-      var meta = document.createElement('div')
-      meta.className = 'dsh-wst-viewer-meta'
-      var created = document.createElement('span')
-      created.textContent = LABELS.viewerCreatedAt + ' ' + formatSessionTime(session.createdAt)
-      var cwd = document.createElement('span')
-      cwd.className = 'dsh-wst-viewer-cwd'
-      cwd.textContent = session.cwd || ''
-      meta.appendChild(created)
-      meta.appendChild(cwd)
-      state.metaHost.textContent = ''
-      state.metaHost.appendChild(meta)
-    }
+    // ---- Archived session: native chat, read-only composer ----
+    // The Host keeps the Session archived. Only DSH's navigation policy is
+    // asked to leave the archived current selection alone while it is being
+    // read; the archived gate and the archived row itself stay untouched.
+    var archivedView = null
+    var archivedViewIntent = 0
+    var archivedClearGuard = null
 
-    function renderViewerEvent(event) {
-      var row = document.createElement('div')
-      row.className = 'dsh-wst-viewer-event dsh-wst-role-' + event.role
-      var strip = document.createElement('span')
-      strip.className = 'dsh-wst-viewer-strip'
-      row.appendChild(strip)
-      var body = document.createElement('div')
-      body.className = 'dsh-wst-viewer-body'
-      if (event.text) {
-        var text = document.createElement('div')
-        text.className = 'dsh-wst-viewer-text'
-        text.textContent = event.text
-        body.appendChild(text)
-      }
-      if (event.truncated) {
-        var cut = document.createElement('div')
-        cut.className = 'dsh-wst-viewer-truncated'
-        cut.textContent = LABELS.viewerTruncated
-        body.appendChild(cut)
-      }
-      if (event.toolCalls) {
-        for (var i = 0; i < event.toolCalls.length; i++) {
-          var call = event.toolCalls[i]
-          var details = document.createElement('details')
-          details.className = 'dsh-wst-viewer-tool'
-          var summary = document.createElement('summary')
-          summary.textContent = LABELS.viewerToolCall + ': ' + call.name
-          var args = document.createElement('pre')
-          args.className = 'dsh-wst-viewer-args'
-          args.textContent = call.arguments
-          details.appendChild(summary)
-          details.appendChild(args)
-          body.appendChild(details)
+    function composerBlocksFor(id) {
+      try {
+        var sessions = ctx && ctx.sessions
+        if (sessions && typeof sessions.scope === 'function') {
+          var scope = sessions.scope(id)
+          var scoped = scope && typeof scope.get === 'function' ? scope.get('conversation') : null
+          if (scoped && scoped.blocks && typeof scoped.blocks.set === 'function') return scoped.blocks
         }
-      }
-      if (event.time) {
-        var time = document.createElement('div')
-        time.className = 'dsh-wst-viewer-time'
-        time.textContent = formatSessionTime(event.time)
-        body.appendChild(time)
-      }
-      row.appendChild(body)
-      return row
+      } catch (err) { /* fall through to the root service */ }
+      try {
+        if (ctx && typeof ctx.get === 'function') {
+          var conversation = ctx.get('conversation')
+          if (conversation && conversation.blocks && typeof conversation.blocks.set === 'function') {
+            return conversation.blocks
+          }
+        }
+      } catch (err) { /* optional */ }
+      return null
     }
 
-    function openSessionViewer(id) {
-      closeToolbarLayers()
-      var shell = layerShell(LABELS.viewerTitle)
-      var metaHost = document.createElement('div')
-      metaHost.className = 'dsh-wst-viewer-header'
-      var notice = document.createElement('div')
-      notice.className = 'dsh-wst-viewer-notice'
-      notice.textContent = LABELS.viewerReadonly
-      var body = document.createElement('div')
-      body.className = 'dsh-batch-archive-body dsh-wst-viewer-body-host'
-      var loading = document.createElement('div')
-      loading.className = 'dsh-batch-archive-empty'
-      loading.textContent = LABELS.viewerLoading
-      var more = document.createElement('button')
-      more.type = 'button'
-      more.className = 'dsh-wst-btn dsh-wst-viewer-more'
-      more.textContent = LABELS.viewerLoadMore
-      more.hidden = true
-      body.appendChild(loading)
-      body.appendChild(more)
-      var wrap = document.createElement('div')
-      wrap.className = 'dsh-wst-viewer-wrap'
-      wrap.appendChild(metaHost)
-      wrap.appendChild(notice)
-      shell.panel.appendChild(wrap)
-      shell.panel.appendChild(body)
-      viewerLayer = shell.overlay
-      var state = { id: id, cursor: null, loading: false, exhausted: false, count: 0, metaHost: metaHost }
-      viewerState = state
-      var eventsHost = document.createElement('div')
-      eventsHost.className = 'dsh-wst-viewer-events'
-      body.insertBefore(eventsHost, more)
-
-      function fail(message) {
-        loading.textContent = message
-        loading.hidden = false
-        more.hidden = true
+    function setComposerBlock(id, reason, blocks) {
+      var registry = blocks || composerBlocksFor(id)
+      if (!registry) return false
+      try {
+        registry.set(id, reason ? { reason: reason } : undefined)
+        return true
+      } catch (err) {
+        return false
       }
-
-      function load(after) {
-        if (state.loading) return
-        state.loading = true
-        more.disabled = true
-        loading.hidden = false
-        loading.textContent = LABELS.viewerLoading
-        postSessionJson(sessionApiPath('read'), {
-          id: state.id,
-          after: after === null ? undefined : after,
-          limit: 50
-        }).then(function (data) {
-          loading.hidden = true
-          if (data.session) renderViewerHeader(state, data.session)
-          var events = data.events || []
-          for (var i = 0; i < events.length; i++) {
-            eventsHost.appendChild(renderViewerEvent(events[i]))
-            state.count += 1
-          }
-          state.cursor = data.nextAfter
-          state.exhausted = data.nextAfter === null || data.nextAfter === undefined
-          if (state.count === 0 && state.exhausted) {
-            loading.hidden = false
-            loading.textContent = LABELS.viewerNoEvents
-          }
-          more.hidden = state.exhausted
-          more.disabled = false
-          state.loading = false
-        }).catch(function (error) {
-          var code = error && error.code ? String(error.code) : ''
-          if (code === 'sessions/migration-required') return fail(LABELS.viewerMigration)
-          if (code === 'sessions/owned') return fail(LABELS.viewerOwned)
-          if (code === 'sessions/not-found') return fail(LABELS.viewerMissing)
-          fail(LABELS.viewerFailed + String(error && error.message ? error.message : error))
-        })
-      }
-
-      more.addEventListener('click', function () {
-        if (state.exhausted || state.loading) return
-        load(state.cursor)
-      })
-      shell.close.addEventListener('click', function () { closeSessionViewer() })
-      shell.overlay.addEventListener('click', function (event) {
-        if (event.target === shell.overlay) closeSessionViewer()
-      })
-      load(null)
     }
 
-    // Clicking an archived row opens the viewer instead of doing nothing.
+    function fallbackComposerSeat(active) {
+      var seat = document.querySelector('[data-conversation-content] [data-composer-seat]')
+      if (!seat) return null
+      if (active) seat.setAttribute('inert', '')
+      else seat.removeAttribute('inert')
+      return seat
+    }
+
+    // DSH clears a current selection that belongs to the archived set whenever
+    // Workspace/Session lists change. That policy is what makes archived rows
+    // unopenable. It is a single private method on the navigation service;
+    // while an archived Session is being read, answer "nothing to clear" and
+    // restore the original on exit. No archive write, no row move.
+    function resetClearGuard() {
+      try {
+        var workspace = ctx && ctx.uiWorkspace
+        if (workspace && typeof workspace.__dshWstClearGuard === 'function') {
+          workspace.clearArchivedCurrent = workspace.__dshWstClearGuard
+          delete workspace.__dshWstClearGuard
+        }
+      } catch (err) { /* optional */ }
+    }
+
+    function installClearGuard() {
+      if (archivedClearGuard) return true
+      try {
+        var workspace = ctx && ctx.uiWorkspace
+        if (!workspace || typeof workspace.clearArchivedCurrent !== 'function') return false
+        var original = workspace.clearArchivedCurrent
+        workspace.clearArchivedCurrent = function () { return false }
+        workspace.__dshWstClearGuard = original
+        archivedClearGuard = { workspace: workspace, original: original }
+        return true
+      } catch (err) {
+        return false
+      }
+    }
+
+    function removeClearGuard() {
+      if (!archivedClearGuard) return
+      try {
+        archivedClearGuard.workspace.clearArchivedCurrent = archivedClearGuard.original
+        delete archivedClearGuard.workspace.__dshWstClearGuard
+      } catch (err) { /* restore is best effort */ }
+      archivedClearGuard = null
+    }
+
+    function stopArchivedViewTimer(view) {
+      if (view && view.timer) {
+        clearInterval(view.timer)
+        view.timer = null
+      }
+    }
+
+    function applyComposerBlock(view) {
+      var registry = composerBlocksFor(view.id)
+      if (!registry) return false
+      view.blocks = registry
+      if (view.domSeat && view.domSeat.isConnected) {
+        view.domSeat.removeAttribute('inert')
+        view.domSeat = null
+      }
+      return setComposerBlock(view.id, LABELS.readonlyComposerPlaceholder, registry)
+    }
+
+    function finishView(view) {
+      if (!view || view.finishing) return
+      view.finishing = true
+      var wasCurrent = archivedView === view
+      if (wasCurrent) {
+        archivedViewIntent += 1
+        archivedView = null
+        removeClearGuard()
+      }
+      stopArchivedViewTimer(view)
+      setComposerBlock(view.id, null, view.blocks)
+      if (view.domSeat && view.domSeat.isConnected) view.domSeat.removeAttribute('inert')
+    }
+
+    function finishArchivedView() {
+      finishView(archivedView)
+    }
+
+    function watchArchivedView(view) {
+      function check() {
+        if (archivedView !== view) return
+        if (!view.blocks) applyComposerBlock(view)
+        var host = document.querySelector('[data-conversation-content]')
+        var current = host ? host.getAttribute('data-conversation-session') : null
+        if (current === view.id) {
+          view.sawTarget = true
+          return
+        }
+        if (!view.sawTarget && Date.now() - view.startedAt < 5000) return
+        finishArchivedView()
+      }
+      view.timer = setInterval(check, 150)
+      check()
+    }
+
+    /**
+     * Open one archived Session in the normal Chat surface. The Session stays
+     * archived for the Host; only the navigation clear policy is suspended
+     * while it is read, and the composer is blocked through the supported
+     * Conversation service.
+     * @param id - archived Session id.
+     */
+    function openArchivedChat(id) {
+      if (!id) return
+      if (archivedView && String(archivedView.id) === String(id)) return
+      if (!ctx || !ctx.uiWorkspace || typeof ctx.uiWorkspace.openSession !== 'function') {
+        showToast(LABELS.viewFailed + 'uiWorkspace.openSession is not available')
+        return
+      }
+      if (!installClearGuard()) {
+        showToast(LABELS.viewFailed + 'this DSH build cannot suspend the archived-selection guard')
+        return
+      }
+      var previousView = archivedView
+      var intent = ++archivedViewIntent
+      var view = {
+        id: id,
+        sawTarget: false,
+        startedAt: Date.now(),
+        finishing: false,
+        timer: null,
+        blocks: null,
+        domSeat: null,
+      }
+      archivedView = view
+      setComposerBlock(id, LABELS.readonlyComposerPlaceholder)
+      try {
+        ctx.uiWorkspace.openSession(id)
+      } catch (error) {
+        finishView(view)
+        if (previousView) {
+          archivedView = previousView
+          installClearGuard()
+          watchArchivedView(previousView)
+        }
+        showToast(LABELS.viewFailed + String(error && error.message ? error.message : error))
+        return
+      }
+      if (!applyComposerBlock(view)) view.domSeat = fallbackComposerSeat(true)
+      watchArchivedView(view)
+      // Finish the previous archived view only after the new Session owns the
+      // conversation; finishing first would clear the selection mid-navigation.
+      if (previousView && previousView !== view) finishView(previousView)
+      if (intent !== archivedViewIntent) finishView(view)
+    }
+
+    // Clicking an archived row opens the normal Chat surface.
     document.addEventListener('click', function (event) {
       if (!event.target || !event.target.closest) return
       if (event.target.closest('button') || event.target.closest('[role="menu"]')) return
@@ -1527,7 +1709,7 @@ window.__ModuleLoader__.load({
       if (!id || !isArchivedSessionId(id)) return
       event.preventDefault()
       event.stopPropagation()
-      openSessionViewer(id)
+      openArchivedChat(id)
     }, true)
 
     // ---- Menu injection ----
@@ -1611,7 +1793,7 @@ window.__ModuleLoader__.load({
     // fallback path when the hover buttons are not reachable.
     function injectSessionDeleteMenuItem(menu) {
       if (!pendingSession || Date.now() > pendingSession.expires) return
-      if (!isArchivedSessionId(pendingSession.id)) return
+      if (!isArchivedSessionId(pendingSession.id) && !isCurrentArchivedView(pendingSession.id)) return
       if (menu.querySelector('[data-dsh-session-delete-item]')) return
       var ref = menu.querySelector('[role="menuitem"]')
       if (!ref) return
@@ -1710,8 +1892,6 @@ window.__ModuleLoader__.load({
         '.dsh-wst-toast { position: fixed; top: 40px; left: 50%; z-index: 1100; pointer-events: none; display: flex; align-items: center; padding: 12px 16px; border-radius: var(--dsw-radius-lg, 10px); background: var(--dsw-alias-toast-bg, #1f2328); color: var(--dsw-alias-toast-label, #fff); font-size: 14px; line-height: 22px; box-shadow: var(--dsw-shadow-lv3, 0 4px 20px rgba(0,0,0,0.25)); transform: translateX(-50%); width: max-content; max-width: min(640px, calc(100vw - 48px)); white-space: nowrap; animation: dsh-wst-toast-in 160ms ease-out, dsh-wst-toast-fade 1000ms ease 2000ms forwards; }',
         '@media (prefers-reduced-motion: reduce) { .dsh-wst-toast { animation: dsh-wst-toast-fade 1000ms ease 2000ms forwards; } }',
         '',
-        '.dsh-wst-row-action { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: none; border-radius: 6px; background: transparent; color: var(--dsw-alias-label-tertiary, #6b7280); cursor: pointer; }',
-        '.dsh-wst-row-action:hover { color: var(--dsw-alias-label-primary, #111827); background: var(--dsw-alias-interactive-bg-hover, rgba(0,0,0,0.06)); }',
         '.dsh-wst-confirm-text { margin: 0; font-size: 13px; line-height: 1.6; color: var(--dsw-alias-label-primary, #1f2328); }',
         '.dsh-wst-confirm-warning { margin: 10px 0 0; font-size: 13px; line-height: 1.5; color: var(--dsw-alias-state-error-primary, #b91c1c); }',
         '.dsh-wst-confirm-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 18px; border-top: 1px solid var(--dsw-alias-border-l2, #e5e7eb); }',
@@ -1720,25 +1900,7 @@ window.__ModuleLoader__.load({
         '.dsh-wst-btn:disabled { opacity: 0.5; cursor: not-allowed; }',
         '.dsh-wst-btn-danger { border-color: transparent; background: var(--dsw-alias-state-error-primary, #b91c1c); color: #fff; }',
         '.dsh-wst-btn-danger:hover:not(:disabled) { background: var(--dsw-alias-state-error-hover, #991b1b); }',
-        '.dsh-wst-viewer-wrap { padding: 10px 18px 0; display: flex; flex-direction: column; gap: 8px; }',
-        '.dsh-wst-viewer-header { font-size: 12px; color: var(--dsw-alias-label-tertiary, #6b7280); }',
-        '.dsh-wst-viewer-meta { display: flex; flex-wrap: wrap; gap: 10px; }',
-        '.dsh-wst-viewer-cwd { word-break: break-all; }',
-        '.dsh-wst-viewer-notice { font-size: 12px; line-height: 1.5; padding: 6px 10px; border-radius: 8px; background: var(--dsw-alias-bg-layer-1, rgba(0,0,0,0.04)); color: var(--dsw-alias-label-secondary, #374151); }',
-        '.dsh-wst-viewer-body-host { display: flex; flex-direction: column; gap: 8px; }',
-        '.dsh-wst-viewer-events { display: flex; flex-direction: column; gap: 10px; }',
-        '.dsh-wst-viewer-event { display: flex; gap: 10px; align-items: stretch; }',
-        '.dsh-wst-viewer-strip { width: 3px; border-radius: 2px; background: var(--dsw-alias-border-l2, #d1d5db); flex-shrink: 0; }',
-        '.dsh-wst-role-user .dsh-wst-viewer-strip { background: var(--dsw-alias-brand-primary, #2563eb); }',
-        '.dsh-wst-role-assistant .dsh-wst-viewer-strip { background: var(--dsw-alias-state-success-primary, #15803d); }',
-        '.dsh-wst-role-tool .dsh-wst-viewer-strip { background: var(--dsw-alias-state-warning-primary, #b45309); }',
-        '.dsh-wst-viewer-body { flex: 1; min-width: 0; font-size: 13px; line-height: 1.6; color: var(--dsw-alias-label-primary, #1f2328); }',
-        '.dsh-wst-viewer-text { white-space: pre-wrap; word-break: break-word; }',
-        '.dsh-wst-viewer-truncated, .dsh-wst-viewer-time { font-size: 11px; color: var(--dsw-alias-label-tertiary, #6b7280); margin-top: 4px; }',
-        '.dsh-wst-viewer-tool { margin-top: 6px; font-size: 12px; }',
-        '.dsh-wst-viewer-tool summary { cursor: pointer; color: var(--dsw-alias-label-secondary, #374151); }',
-        '.dsh-wst-viewer-args { margin: 6px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--dsw-alias-bg-layer-1, rgba(0,0,0,0.04)); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow: auto; }',
-        '.dsh-wst-viewer-more { align-self: flex-start; margin: 4px 0 12px; }',
+        '[data-dsh-wst-deleted] { display: none !important; }',
         '',
         // 消息附件卡片可点击样式：CSS-module 类名被 hash，用结构选择器定位
         // （附件行内带 title 的 span 就是文件卡片）。
@@ -1762,10 +1924,9 @@ window.__ModuleLoader__.load({
 
     // Handle Escape to close the dialog.
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && (deleteConfirmLayer || viewerLayer)) {
+      if (e.key === 'Escape' && deleteConfirmLayer) {
         e.stopPropagation()
         closeDeleteConfirm()
-        closeSessionViewer()
         return
       }
       if (e.key === 'Escape' && archiveOverlay) {
@@ -1785,7 +1946,14 @@ window.__ModuleLoader__.load({
 
     function apply(pluginCtx) {
       ctx = pluginCtx
+      resetClearGuard()
       injectStyles()
+      try {
+        var injected = toolkitConfig() || {}
+        if (injected.build !== '0.4.0+force-detach' && typeof console !== 'undefined' && console.warn) {
+          console.warn('[workspace-toolkit] host plugin is an older build; restart DSH (or reload the plugin) before deleting archives')
+        }
+      } catch (err) { /* optional injection */ }
       setTimeout(scheduleArchivedScan, 800)
       setTimeout(scheduleArchivedScan, 3000)
       setTimeout(checkMigrationStatus, 1200)
@@ -1798,6 +1966,16 @@ window.__ModuleLoader__.load({
                 return { workspaceId: w.workspaceId, path: w.path, title: w.title, sessionIds: w.sessionIds || [] }
               })
               archivedSessionIds = snap.archivedSessionIds || []
+              // The user (or another surface) archived the Session while we
+              // were viewing it: stop treating it as a temporary unarchive.
+              if (archivedView && Date.now() >= archivedView.graceUntil
+                && isArchivedSessionId(archivedView.id)) {
+                stopArchivedViewTimer(archivedView)
+                setComposerBlock(archivedView.id, null, archivedView.blocks)
+                if (archivedView.domSeat && archivedView.domSeat.isConnected) archivedView.domSeat.removeAttribute('inert')
+                clearArchivedViewMarker()
+                archivedView = null
+              }
             } catch (err) {
             }
           }

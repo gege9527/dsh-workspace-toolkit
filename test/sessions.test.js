@@ -10,7 +10,7 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 
 import { deleteArchivedSessions, normalizeIds } from '../sessions/delete.js'
-import { projectEvent, readArchivedSession } from '../sessions/read.js'
+import { MAX_TAIL_BYTES, projectEvent, readArchivedSession } from '../sessions/read.js'
 import { localityViolation, MAX_BODY_BYTES } from '../sessions/http.js'
 
 /** Build a temp DSH home with one stored session artifact and its cache record. */
@@ -37,13 +37,36 @@ async function makeHome(options = {}) {
   return { home, sessionId, dir, artifact }
 }
 
-function fakeServices({ home, sessionId, archived = true, events = [], formatStatus = 'current', openError = null, statError = null }) {
-  const calls = { unarchive: [], stat: 0, open: 0, live: [] }
+function fakeServices({
+  home, sessionId, archived = true, events = [], formatStatus = 'current', openError = null, statError = null,
+  withWorkspace = true, liveSession = null, agent = null, byteSize = undefined,
+}) {
+  const calls = { unarchive: [], stat: 0, open: 0, live: [], detach: [], dispose: [] }
+  const entity = {
+    sessionIds: withWorkspace ? [sessionId] : [],
+    async detachSession(id) {
+      calls.detach.push(id)
+      const at = this.sessionIds.indexOf(id)
+      if (at >= 0) this.sessionIds.splice(at, 1)
+    },
+  }
+  const headers = new Map([[sessionId, { version: 4, id: sessionId, createdAt: 1700000000000, cwd: '/tmp/project' }]])
+  const sessionPaths = new Map([[sessionId, '/tmp/project']])
+  let live = liveSession
+  let currentAgent = agent
   return {
     calls,
+    entity,
+    headers,
+    sessionPaths,
     services: {
       workspaceRegistry: {
         archivedSessionIds: archived ? [sessionId] : [],
+        headers,
+        sessionPaths,
+        missingSessionPaths: new Set(),
+        invalidSessionPaths: new Map(),
+        list() { return withWorkspace ? [entity] : [] },
         async unarchiveSession(id) { calls.unarchive.push(id) },
       },
       sessionPersistence: {
@@ -51,11 +74,19 @@ function fakeServices({ home, sessionId, archived = true, events = [], formatSta
           calls.stat += 1
           if (id !== sessionId) return undefined
           if (statError !== null) throw statError
+          const artifactPath = join(home, 'sessions', 'project-key', id, 'session.v4.jsonl.zstd')
+          let artifactInfo
+          try {
+            artifactInfo = await stat(artifactPath)
+          } catch {
+            return undefined
+          }
           return {
             header: { version: 4, id, createdAt: 1700000000000, cwd: '/tmp/project', isSeeded: false },
             formatStatus,
             revision: 'rev',
             eventCount: events.length,
+            sizeBytes: byteSize === undefined ? Number(artifactInfo.size) : byteSize,
             location: { kind: 'jsonl', path: join(home, 'sessions', 'project-key', id, 'session.v4.jsonl.zstd') },
           }
         },
@@ -73,18 +104,34 @@ function fakeServices({ home, sessionId, archived = true, events = [], formatSta
           }
         },
       },
-      sessions: { get(id) { calls.live.push(id); return undefined } },
+      sessions: {
+        store: new Map(),
+        get(id) { calls.live.push(id); return live === null ? undefined : live },
+      },
+      agents: {
+        get(id) {
+          calls.live.push('agent:' + id)
+          return currentAgent === null ? undefined : currentAgent
+        },
+      },
+      setLive(value) { live = value },
+      setAgent(value) { currentAgent = value },
     },
   }
 }
 
-test('deletes an archived session, unarchives first and clears both caches', async () => {
+test('deletes an archived session, clears both caches, and drops its Workspace accounting', async () => {
   const env = await makeHome({ cacheUnit: true, cacheDir: true })
-  const { services, calls } = fakeServices({ home: env.home, sessionId: env.sessionId })
+  const { services, calls, entity, headers, sessionPaths } = fakeServices({ home: env.home, sessionId: env.sessionId })
   const outcome = await deleteArchivedSessions(services, env.home, [env.sessionId])
   assert.equal(outcome.results.length, 1)
   assert.equal(outcome.results[0].ok, true)
+  assert.equal(outcome.results[0].detached, true)
   assert.deepEqual(calls.unarchive, [env.sessionId])
+  assert.deepEqual(calls.detach, [env.sessionId])
+  assert.deepEqual(entity.sessionIds, [])
+  assert.equal(headers.has(env.sessionId), false)
+  assert.equal(sessionPaths.has(env.sessionId), false)
   await assert.rejects(stat(env.dir))
   const unit = JSON.parse(await readFile(join(env.home, 'storages', 'session_projcache.json'), 'utf8'))
   assert.equal(unit.tables.sessions[env.sessionId], undefined)
@@ -114,6 +161,103 @@ test('refuses a session with live agent work', async () => {
   await rm(env.home, { recursive: true, force: true })
 })
 
+test('releases an idle Agent before deleting, so a stopped archived session can be removed', async () => {
+  const env = await makeHome()
+  const fake = fakeServices({ home: env.home, sessionId: env.sessionId })
+  fake.services.setAgent({
+    status: 'idle',
+    async dispose() {
+      fake.calls.dispose.push(env.sessionId)
+      fake.services.setLive(null)
+    },
+  })
+  const outcome = await deleteArchivedSessions(fake.services, env.home, [env.sessionId])
+  assert.equal(outcome.results[0].ok, true)
+  assert.deepEqual(fake.calls.dispose, [env.sessionId])
+  assert.deepEqual(fake.calls.unarchive, [env.sessionId])
+  await assert.rejects(stat(env.dir))
+  await rm(env.home, { recursive: true, force: true })
+})
+
+test('disposes a running Agent before deleting an archived session', async () => {
+  const env = await makeHome()
+  const fake = fakeServices({ home: env.home, sessionId: env.sessionId, liveSession: { id: env.sessionId } })
+  fake.services.setAgent({
+    status: 'running',
+    async dispose() {
+      fake.calls.dispose.push(env.sessionId)
+      fake.services.setLive(null)
+    },
+  })
+  const outcome = await deleteArchivedSessions(fake.services, env.home, [env.sessionId])
+  assert.equal(outcome.results[0].ok, true)
+  assert.deepEqual(fake.calls.dispose, [env.sessionId])
+  await assert.rejects(stat(env.dir))
+  await rm(env.home, { recursive: true, force: true })
+})
+
+test('refuses when a running Agent cannot be disposed and remains live', async () => {
+  const env = await makeHome()
+  const fake = fakeServices({ home: env.home, sessionId: env.sessionId, liveSession: { id: env.sessionId } })
+  fake.services.setAgent({ status: 'running', async dispose() { throw new Error('dispose failed') } })
+  const outcome = await deleteArchivedSessions(fake.services, env.home, [env.sessionId])
+  assert.equal(outcome.results[0].error.code, 'sessions/active')
+  assert.ok(await stat(env.artifact))
+  await rm(env.home, { recursive: true, force: true })
+})
+
+test('finishes cleanup when the artifact is already gone', async () => {
+  const env = await makeHome()
+  const { services, calls, entity } = fakeServices({ home: env.home, sessionId: env.sessionId })
+  await rm(env.dir, { recursive: true, force: true })
+  const outcome = await deleteArchivedSessions(services, env.home, [env.sessionId])
+  assert.equal(outcome.results[0].ok, true)
+  assert.equal(outcome.results[0].alreadyGone, true)
+  assert.deepEqual(calls.unarchive, [env.sessionId])
+  assert.deepEqual(calls.detach, [env.sessionId])
+  assert.deepEqual(entity.sessionIds, [])
+  await rm(env.home, { recursive: true, force: true })
+})
+
+test('a retry after a partial deletion is idempotent even when the id is no longer archived', async () => {
+  const env = await makeHome()
+  const { services, calls, entity } = fakeServices({ home: env.home, sessionId: env.sessionId, archived: false })
+  await rm(env.dir, { recursive: true, force: true })
+  const outcome = await deleteArchivedSessions(services, env.home, [env.sessionId])
+  assert.equal(outcome.results[0].ok, true)
+  assert.equal(outcome.results[0].alreadyGone, true)
+  assert.deepEqual(calls.unarchive, [env.sessionId])
+  assert.deepEqual(calls.detach, [env.sessionId])
+  assert.deepEqual(entity.sessionIds, [])
+  await rm(env.home, { recursive: true, force: true })
+})
+
+test('releases an idle live entry that outlived its Agent before deleting', async () => {
+  const env = await makeHome()
+  const fake = fakeServices({ home: env.home, sessionId: env.sessionId, liveSession: { id: env.sessionId } })
+  fake.services.sessions.store.set(env.sessionId, {
+    detach() {
+      fake.calls.detach.push(env.sessionId)
+      fake.services.setLive(null)
+    },
+  })
+  const outcome = await deleteArchivedSessions(fake.services, env.home, [env.sessionId])
+  assert.equal(outcome.results[0].ok, true)
+  assert.equal(outcome.results[0].releasedLive, true)
+  await assert.rejects(stat(env.dir))
+  await rm(env.home, { recursive: true, force: true })
+})
+
+test('refuses when a live entry has no detach capability', async () => {
+  const env = await makeHome()
+  const fake = fakeServices({ home: env.home, sessionId: env.sessionId, liveSession: { id: env.sessionId } })
+  const outcome = await deleteArchivedSessions(fake.services, env.home, [env.sessionId])
+  assert.equal(outcome.results[0].ok, false)
+  assert.equal(outcome.results[0].error.code, 'sessions/active')
+  assert.ok(await stat(env.artifact))
+  await rm(env.home, { recursive: true, force: true })
+})
+
 test('reports a stat failure per id and keeps going', async () => {
   const env = await makeHome()
   const { services } = fakeServices({ home: env.home, sessionId: env.sessionId, statError: new Error('boom') })
@@ -124,10 +268,11 @@ test('reports a stat failure per id and keeps going', async () => {
   assert.equal(outcome.results.length, 2)
   assert.equal(outcome.results[0].ok, false)
   assert.equal(outcome.results[0].error.code, 'sessions/stat-failed')
-  assert.match(outcome.results[0].error.message, /unarchived but its logs are still on disk/)
-  // 'missing' passed the archived gate (the fake list names it) and then found
-  // no stored artifact, which is the not-found path.
-  assert.equal(outcome.results[1].error.code, 'sessions/not-found')
+  assert.equal(outcome.results[0].filesRemoved, false)
+  // 'missing' passed the archived gate (the fake list names it) and found no
+  // stored artifact; that is the idempotent already-gone path.
+  assert.equal(outcome.results[1].ok, true)
+  assert.equal(outcome.results[1].alreadyGone, true)
   await rm(env.home, { recursive: true, force: true })
 })
 
@@ -162,8 +307,13 @@ test('projects user, assistant and tool events and skips log-only ones', () => {
   })
   assert.equal(assistant.role, 'assistant')
   assert.deepEqual(assistant.toolCalls, [{ name: 'bash', arguments: '{"cmd":"ls"}' }])
-  assert.equal(projectEvent({ type: 'step/start', seq: 3, time: 12, data: { turn: 1, step: 1 } }), null)
-  assert.equal(projectEvent({ type: 'request/header', seq: 4, time: 13, data: {} }), null)
+  const tool = projectEvent({
+    type: 'tool/result', seq: 3, time: 12,
+    data: { message: { role: 'tool', isError: true, content: [{ type: 'text', text: 'failed' }] } },
+  })
+  assert.deepEqual(tool, { seq: 3, time: 12, role: 'tool', text: 'failed', truncated: false, isError: true })
+  assert.equal(projectEvent({ type: 'step/start', seq: 4, time: 12, data: { turn: 1, step: 1 } }), null)
+  assert.equal(projectEvent({ type: 'request/header', seq: 5, time: 13, data: {} }), null)
 })
 
 test('truncates an oversized body and marks it', () => {
@@ -193,6 +343,60 @@ test('reads one page and reports whether more events exist', async () => {
   assert.deepEqual(last.events.map(event => event.text), ['m4'])
   assert.equal(last.hasMore, false)
   assert.equal(last.nextAfter, null)
+  await rm(env.home, { recursive: true, force: true })
+})
+
+test('tail reads the newest page and walks older with before', async () => {
+  const env = await makeHome()
+  const events = Array.from({ length: 8 }, (_, index) => ({
+    type: 'user/message', seq: index, time: index,
+    data: { message: { role: 'user', content: [{ type: 'text', text: 'm' + String(index) }] } },
+  }))
+  const { services } = fakeServices({ home: env.home, sessionId: env.sessionId, events })
+  const tail = await readArchivedSession(services, { id: env.sessionId, tail: true, limit: 3 })
+  assert.deepEqual(tail.events.map(event => event.text), ['m5', 'm6', 'm7'])
+  assert.equal(tail.previousAfter, 5)
+  assert.equal(tail.nextAfter, null)
+  const older = await readArchivedSession(services, { id: env.sessionId, before: tail.previousAfter, limit: 3 })
+  assert.deepEqual(older.events.map(event => event.text), ['m2', 'm3', 'm4'])
+  assert.equal(older.previousAfter, 2)
+  const oldest = await readArchivedSession(services, { id: env.sessionId, before: older.previousAfter, limit: 3 })
+  assert.deepEqual(oldest.events.map(event => event.text), ['m0', 'm1'])
+  assert.equal(oldest.previousAfter, null)
+  await rm(env.home, { recursive: true, force: true })
+})
+
+test('an oversized log uses the forward fallback instead of materializing the tail', async () => {
+  const env = await makeHome()
+  const events = Array.from({ length: 5 }, (_, index) => ({
+    type: 'user/message', seq: index, time: index,
+    data: { message: { role: 'user', content: [{ type: 'text', text: 'm' + String(index) }] } },
+  }))
+  const { services } = fakeServices({
+    home: env.home, sessionId: env.sessionId, events, byteSize: MAX_TAIL_BYTES + 1,
+  })
+  const first = await readArchivedSession(services, { id: env.sessionId, tail: true, limit: 2 })
+  assert.deepEqual(first.events.map(event => event.text), ['m0', 'm1'])
+  assert.equal(first.tailFallback, true)
+  assert.equal(first.nextAfter, 2)
+  assert.equal(first.previousAfter, null)
+  const next = await readArchivedSession(services, { id: env.sessionId, after: first.nextAfter, limit: 2 })
+  assert.deepEqual(next.events.map(event => event.text), ['m2', 'm3'])
+  await rm(env.home, { recursive: true, force: true })
+})
+
+test('tail skips log-only events without getting stuck on an empty page', async () => {
+  const env = await makeHome()
+  const events = [
+    { type: 'step/start', seq: 0, time: 0, data: {} },
+    { type: 'user/message', seq: 1, time: 1, data: { message: { role: 'user', content: [{ type: 'text', text: 'visible' }] } } },
+    { type: 'step/end', seq: 2, time: 2, data: {} },
+    { type: 'request/header', seq: 3, time: 3, data: {} },
+  ]
+  const { services } = fakeServices({ home: env.home, sessionId: env.sessionId, events })
+  const tail = await readArchivedSession(services, { id: env.sessionId, tail: true, limit: 2 })
+  assert.deepEqual(tail.events.map(event => event.text), ['visible'])
+  assert.equal(tail.previousAfter, null)
   await rm(env.home, { recursive: true, force: true })
 })
 
