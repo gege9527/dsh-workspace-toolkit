@@ -20,6 +20,28 @@
   - 列出该工作区下所有非空白、未归档的会话（运行中的会话半透明显示，由用户自行决定是否归档）。
   - 支持全选 / 取消全选、显示更新时间、顺序调用 `uiWorkspace.archiveSession(sessionId)`，单个失败即暂停并提醒，避免并发覆盖 archive set。
 
+- **迁移工作区… / Migrate Workspace…**
+  - 始终出现在工作区行右侧“⋮”菜单。点击时检查该工作区路径：路径正常则提示“工作区路径正常，无需迁移”；原目录已不存在（例如用户移动了项目文件夹）才打开迁移向导。
+  - 选择已存在的目标目录后，把该工作区名下的全部会话（含子代理会话）原样迁到新路径。
+  - 默认**免重启**：迁移会话日志目录，只改写日志首帧 header 的 `cwd`，再刷新注册表内存索引并通过公开 API 重建工作区；侧边栏经 DSH 的 `domain/changed` 事件流自动更新。
+  - 不兼容当前 DSH 内部索引结构时自动降级为“重启后完成”：journal 落盘，下一次 DSH 启动时自动续跑。
+  - 保留会话 id、全部事件、标题、工作区标题/顺序、会话顺序、归档/置顶状态；工作区内部 id 会变（无公开 API 可指定）。
+  - 支持完成前回滚、崩溃续跑、活动会话拒绝、格式/空间/目标占用预检。
+  - 不移动项目文件；目标目录必须已经存在。
+
+- **删除归档会话 / Delete Archived Session**
+  - 每条归档会话行的 hover 操作区在“取消归档”旁新增 **删除会话 / Delete session**，会话右键菜单也有同名项。
+  - 点击后二次确认，红字标注**删除后不可恢复**；取消、Esc、点遮罩都不会发出请求。
+  - 服务端顺序固定：校验归档态 → 拒绝活动会话 → 走公开 API 取消归档 → 删整个会话目录（含全部格式 generation）→ 清理投影缓存（目录布局与单文件布局都探测）。
+  - 只对归档会话开放；未归档会话服务端返回 `not-archived`，日志与归档状态都不动。
+  - 逐条返回 `{id, ok, stage, error}`，部分失败不回滚已删项；失败原因会说明会话当前是“未归档但日志仍在”，可重试。
+
+- **只读查看归档会话 / Read-only View of Archived Session**
+  - 点击归档会话行（或 hover 的“查看”按钮）打开只读查看器：标题、`cwd`、创建时间、只读提示条、按序渲染的对话事件。
+  - **不恢复 Agent、不写日志、不产生模型请求**：只走 `sessionPersistence.open(id, 'read')`，读完立即释放句柄。
+  - 每页 50 条，游标继续加载；单条正文截断 8 KiB 并标注，单次响应上限 1 MiB。
+  - 无输入框、无发送按钮、无附件入口；格式需迁移 / 会话被占用 / 不存在分别给出明确提示。
+
 - **点击附件在右侧栏查看 / Click Attachment to Preview in Right Sidebar**
   - 用户消息中的文件附件卡片现在可点击，与查看源码文件一样在右侧栏打开预览。
   - 附件实体按 `<DSH_HOME>/attachments/v1/files/<sha256前2>/<sha256>/<文件名>` 内容寻址存储，宿主在页面注入 `__DSH_WORKSPACE_TOOLKIT__.attachmentsRoot`，点击时拼出 `dsh-resource://file/session/…` 地址交给 `ctx.sidebarRight.openResource`，复用 DSH 自带文件查看器（text/code/markdown/… 按扩展名自动匹配）。
@@ -82,14 +104,19 @@ plugins:
 3. 选择 **复制工作区路径 / Copy Workspace Path** 即可复制该工作区的绝对路径。
 4. 选择 **批量归档会话… / Batch Archive Sessions…**，勾选需要归档的会话后点击“归档所选”。
 5. 点击自己消息里的**文件附件卡片**，右侧栏会像查看源码文件一样打开预览。
-6. 在输入框**粘贴超长文本**（>2000 字符），自动转为 `.txt` 文件附件发送；附件卡片下方出现“粘贴原文至输入框”可一键还原。
-7. 发送超长文本消息后，气泡自动折叠，点“展开”查看全文。
+6. 选择 **迁移工作区…**：路径正常会提示无需迁移；原目录已被移动时才进入向导。填写已存在的目标目录并先点“预检”；确认摘要后点“开始迁移”。若显示“迁移完成，无需重启”，侧边栏会在事件流更新后出现新工作区；若提示需要重启，重启 DSH 后自动完成。
+7. 在输入框**粘贴超长文本**（>2000 字符），自动转为 `.txt` 文件附件发送；附件卡片下方出现“粘贴原文至输入框”可一键还原。
+8. 发送超长文本消息后，气泡自动折叠，点“展开”查看全文。
+9. 在“显示已归档”视图中 hover 一条归档会话：点**查看**打开只读查看器，点**删除会话**删除（需二次确认，不可恢复）。
 
 ## File Structure
 
 ```text
-index.js          # Host half entry point. No server-side state is required.
-client.js         # Browser half. Observes workspace rows/menus, injects menu items, renders the batch-archive dialog.
+index.js          # Host half entry: injection facts, migration HTTP API, session delete/read API, boot recovery.
+migration/        # Host-only migration engine: paths, zstd log rewrite, journal, registry compat, orchestration.
+sessions/         # Host-only archived-session services: local-only HTTP guard, path resolution, delete, read-only projection.
+test/             # node:test unit tests (run: node --test).
+client.js         # Browser half: menu injection, batch-archive dialog, migration wizard/status banner.
 cordis.patch.yml  # Cordis bundle patch used by DSH to load the browser plugin.
 ```
 
@@ -101,6 +128,9 @@ cordis.patch.yml  # Cordis bundle patch used by DSH to load the browser plugin.
 - **Attachment preview**: 宿主在 `webserver/index-inject` 注入 `__DSH_WORKSPACE_TOOLKIT__`（附件根目录 + 粘贴阈值）；浏览器监听 `session/event` 的 `user/message` 索引 `FileAttachmentRef`，点击附件卡片时拼 `dsh-resource://file/session/<id>/<绝对路径>` 调 `sidebarRight.openResource` 打开右侧栏预览（复用 DSH 文件查看器）。
 - **Paste-to-file**: 监听 `data-composer-input` 的 paste 事件，纯文本超阈值即 `preventDefault`，经 `conversation.createDrafts` 生成 `<首行50字符>.txt` 附件并 `conversation.input.addAttachments` 加入草稿；失败时原文回填输入框。
 - **Paste restore**: paste 转文件时把原文、草稿 id、活引用（`shell`/`conversation`）存入记录；点恢复按钮时直接用这些引用把原文 `setDraft` 回输入框并 `removeAttachment` + `releaseDraftAttachment` 释放附件（不重新解析服务，避免 inactive context 报错）。
+- **Migration**: 预检枚举 `workspace.sessionIds` 与所有 `header.cwd === oldPath` 的日志（含 subagent 子会话），逐会话取 `sessionPersistence` 写租约、rename 目录到新 `projectKey`、只重压首帧 header 并原样拷贝其余帧。完成阶段先 `stat` 新 header 刷新 registry 私有索引（feature-detect `indexHeader` 或索引 Map），再走公开 API：`create(path, markerTitle)` → `setTitle` → 逆序 `attachSession` → `insertBefore` → `delete` 旧记录。失败或索引不可用则写 `awaiting-restart` journal，由下一次启动完成。journal 在 `<DSH_HOME>/workspace-toolkit/migrations/`。
+- **Delete archived session**: 浏览器 `POST /api/workspace-toolkit/sessions/delete`（先校验 `Host`/`Origin` 为本机，否则 403）。宿主逐 id 执行“归档校验 → 活动检测 → `workspaceRegistry.unarchiveSession` → `sessionPersistence.stat().location` 推导会话目录 → 删目录 → 清 `session_projcache` 两种布局”；路径不自行实现 `projectKey`，并校验解析结果仍在 `<DSH_HOME>/sessions` 下。
+- **View archived session**: `POST /api/workspace-toolkit/sessions/read` 用 `open(id, 'read')` 分页读取事件，投影成 user/assistant/tool 三种纯文本行；不 resume、不 append，格式需迁移或存在写租约时直接返回原因。
 - **Bubble collapse**: 监听 `data-chat-flow-kind="user"` 行，行总文本超 2000 时定位气泡加 `max-height` 限高 + 渐隐；按钮切换 `dsh-long-text-clamp` class 展开/收起。多轮初始扫描（400ms/1.5s/3s）+ 统一防抖 MutationObserver 覆盖历史加载与渐进渲染，按行 key 去重防重复注入。
 - **Performance**: 3 个全量 MutationObserver 合并为 1 个统一 observer，一次遍历按需分流（菜单注入 / composer 卡片 / 气泡折叠）；文本长度统计排除插件自身按钮文本，避免自增触发无限重评估。
 - **Internationalization**: 文案根据浏览器 `navigator.language` 在中文与英文间自动切换；暂时无法跟随 DSH 内部语言热切换。
@@ -111,6 +141,23 @@ cordis.patch.yml  # Cordis bundle patch used by DSH to load the browser plugin.
 - 批量归档弹窗基于 `ctx.workspaces.list` 和 `ctx.sessions.list` 渲染，不直接操作会话行 DOM，因此相对稳定。
 - 菜单文案基于 `navigator.language` 简单判断，无法跟随 DSH 内部语言切换。
 - 批量归档使用顺序调用以避免并发覆盖；单个失败会暂停并弹窗提示。
+- 工作区迁移依赖 DSH 当前的存储布局（Session format v4、workspace unit v2、`projectKey` 编码）。DSH 升级后需同步兼容表；免重启路径依赖未公开的 registry 索引刷新，feature-detect 失败会自动退回“重启后完成”。
+- 迁移后工作区内部 id 变化；客户端按 workspaceId 记住的临时选中状态会重置。
+- 迁移只改 DSH 会话存储，不移动项目文件；历史事件里的绝对路径保持原样。不要同时运行两个使用同一 `DSH_HOME` 的 DSH 实例。
+- 迁移入口始终显示，但只用于“原工作区目录已缺失”的场景；点击时路径正常会提示无需迁移，预检也会以 `migration/source-present` 拒绝，避免把正常工作的空间改指到别处。
+- 会话格式低于 v4 或压缩/目录布局不受支持时拒绝迁移，不做部分迁移。
+- 删除入口依赖 DSH 归档行的两个耦合点：`aria-label` 为“取消归档 / Unarchive session”的 hover 按钮，以及行的 `data-row-key="session:<id>"`。任一失配时删除/查看入口静默跳过（会话右键菜单仍可用），不会让插件抛错。
+- 两个会话路由只接受本机请求：`Host` 必须是 `localhost` / `127.0.0.1` / `[::1]`，`Origin` 若存在必须同源，否则 403。用 `--host 0.0.0.0` 暴露到局域网时这两个接口仍然不可远程调用。
+- 删除绕过 `SessionPersistence` 抽象直接删文件（DSH 目前没有删除 API）；若未来 DSH 提供 `deleteSession`，把 `sessions/delete.js` 的落盘步骤替换即可。
+
+## Migration recovery
+
+- Journal: `<DSH_HOME>/workspace-toolkit/migrations/<migrationId>.json` (completed journals move to `migrations/done/`; a diagnostic snapshot lives in `migrations/snapshots-<id>/`).
+- States: `prepared` → `files-moved` → `completing` → `complete`，异常时为 `failed` / `awaiting-restart`，回滚后为 `rolled-back`。
+- 完成前（`registryStarted !== true`）可在 UI 的“回滚迁移”或 `{"action":"rollback","migrationId":"…"}` 恢复文件与 header。
+- 完成已开始（`registryStarted: true`）时不要手工回滚文件；在 UI 点“继续完成”，或重启 DSH 让启动完成阶段续跑。
+- 手工恢复：每个 session 条目记录 `oldDir`、`newDir`、`generationName`、`oldHeaderBase64`（原始 header 行）。必要时把目录移回 `oldDir`，用该 base64 行替换日志首帧 header（zstd 需带 checksum 重新压缩），或按 `newDir` 保留并让 journal 继续完成。
+- 兼容基线：Session format v4、workspace unit v2、Node >= 24.9。插件版本升级时保持与本机 DSH 版本一致。
 
 ## License
 

@@ -39,7 +39,66 @@ window.__ModuleLoader__.load({
       pasteRestored: isZh() ? '已恢复原文至输入框' : 'Content restored to the input box',
       pasteTooLongRestore: isZh() ? '内容过长，无法恢复至输入框' : 'Content too long to restore',
       expand: isZh() ? '展开' : 'Expand',
-      collapse: isZh() ? '收起' : 'Collapse'
+      collapse: isZh() ? '收起' : 'Collapse',
+      migrate: isZh() ? '迁移工作区…' : 'Migrate Workspace…',
+      migrateTitle: isZh() ? '迁移工作区' : 'Migrate Workspace',
+      migrateTargetLabel: isZh() ? '目标目录（必须已存在）' : 'Target directory (must already exist)',
+      migrateTargetPlaceholder: isZh() ? '例如 /Users/you/Projects/new-path' : 'e.g. /Users/you/Projects/new-path',
+      migratePreflight: isZh() ? '预检' : 'Preflight',
+      migrateStart: isZh() ? '开始迁移' : 'Start migration',
+      migrateRunning: isZh() ? '迁移中…' : 'Migrating…',
+      migrateChecking: isZh() ? '正在检查…' : 'Checking…',
+      migrateSummary: isZh()
+        ? '会话 {sessions} 个（含子会话 {subagents}），共 {bytes}；已归档 {archived} 个。完成方式：{mode}'
+        : '{sessions} sessions ({subagents} subagent), {bytes} total; {archived} archived. Completion: {mode}',
+      migrateModeInline: isZh() ? '免重启' : 'no restart',
+      migrateModeBoot: isZh() ? '需重启 DSH' : 'restart required',
+      migrateInlineDone: isZh() ? '迁移完成，无需重启。侧边栏会自动更新。' : 'Migration complete. No restart needed; the sidebar updates automatically.',
+      migrateBootPending: isZh()
+        ? '迁移文件已准备好。请重启 DSH，完成后会话会自动出现在新路径。'
+        : 'Migration files are prepared. Restart DSH; sessions will appear under the new path automatically.',
+      migrateBootHint: isZh()
+        ? '重启前该工作区的会话暂时不可见；可在此回滚。'
+        : 'Sessions of this workspace stay hidden until the restart; you can roll back here.',
+      migrateRestartRequired: isZh() ? '需要重启 DSH 完成' : 'Restart DSH to finish',
+      migrateRollback: isZh() ? '回滚迁移' : 'Roll back migration',
+      migrateRolledBack: isZh() ? '已回滚，工作区与文件恢复原状。' : 'Rolled back; workspace and files restored.',
+      migrateFailed: isZh() ? '迁移失败：' : 'Migration failed: ',
+      migrateRetry: isZh() ? '重试' : 'Retry',
+      migrateRetryComplete: isZh() ? '继续完成' : 'Finish migration',
+      migrateBannerTitle: isZh() ? '工作区迁移' : 'Workspace migration',
+      migrateStatusFailed: isZh() ? '上次迁移未完成。' : 'The previous migration did not finish.',
+      migrateCompleting: isZh() ? '迁移登记中…' : 'Applying migration…',
+      migrateBytes: isZh() ? '{n} 字节' : '{n} bytes',
+      migrateNoSessions: isZh() ? '该工作区没有会话，仍可迁移路径。' : 'No sessions in this workspace; the path can still be migrated.',
+      migrateBlocked: isZh() ? '预检未通过：' : 'Preflight blocked: ',
+      migrateUnarchive: isZh() ? '迁移后取消归档这些会话' : 'Unarchive these sessions after migration',
+      migrateClose: isZh() ? '关闭' : 'Close',
+      migratePathRequired: isZh() ? '请填写目标目录' : 'Target directory is required',
+      migrateNotNeeded: isZh() ? '工作区路径正常，无需迁移' : 'Workspace path is available; no migration needed',
+      deleteSession: isZh() ? '删除会话' : 'Delete session',
+      deleteConfirmTitle: isZh() ? '删除会话' : 'Delete session',
+      deleteConfirmBody: isZh()
+        ? '将永久删除“{title}”的会话日志与派生数据。删除后不可恢复。'
+        : 'Permanently delete the session logs and derived data of "{title}". This cannot be undone.',
+      deleteAction: isZh() ? '删除' : 'Delete',
+      deleting: isZh() ? '删除中…' : 'Deleting…',
+      deleted: isZh() ? '已删除 {n} 个会话，释放 {bytes}' : 'Deleted {n} sessions, freed {bytes}',
+      deleteFailed: isZh() ? '删除失败：' : 'Delete failed: ',
+      viewSession: isZh() ? '查看' : 'View',
+      viewerTitle: isZh() ? '归档会话' : 'Archived session',
+      viewerReadonly: isZh() ? '该会话已归档，查看器为只读' : 'This session is archived; the viewer is read-only',
+      viewerLoading: isZh() ? '加载中…' : 'Loading…',
+      viewerLoadMore: isZh() ? '加载更多' : 'Load more',
+      viewerNoEvents: isZh() ? '该会话没有可显示的对话内容。' : 'This session has no displayable conversation content.',
+      viewerMigration: isZh() ? '该会话需要先由较新版本的 DSH 迁移才能查看。' : 'This session must be migrated by a newer DSH before it can be viewed.',
+      viewerOwned: isZh() ? '会话正被占用，请稍后重试。' : 'The session is currently in use. Try again later.',
+      viewerMissing: isZh() ? '会话已不存在，请刷新侧边栏。' : 'The session no longer exists. Refresh the sidebar.',
+      viewerFailed: isZh() ? '读取失败：' : 'Read failed: ',
+      viewerTruncated: isZh() ? '已截断' : 'truncated',
+      viewerToolCall: isZh() ? '工具调用' : 'Tool call',
+      viewerCreatedAt: isZh() ? '创建于' : 'Created',
+      viewerUntitled: isZh() ? '未命名会话' : 'Untitled session'
     }
 
     // ---- Workspace row tracking ----
@@ -86,6 +145,8 @@ window.__ModuleLoader__.load({
     }
 
     // Session cache populated from ctx.sessions.list
+    // The session whose row menu is open (archived rows get a delete entry).
+    var pendingSession = null
     var sessionById = {}
     var sessionIds = []
     var sessionCurrent = null
@@ -104,6 +165,9 @@ window.__ModuleLoader__.load({
         (label.indexOf('会话') !== -1 && label.indexOf('的操作') !== -1)
       if (isSessionMenu) {
         pendingWorkspace = null
+        var menuRow = btn.closest('[data-row-key^="session:"]')
+        var menuSessionId = menuRow ? sessionIdFromRow(menuRow) : null
+        pendingSession = menuSessionId ? { id: menuSessionId, expires: Date.now() + 10000 } : null
         return
       }
       // 除工作区行菜单按钮外的任何点击都立即作废 pendingWorkspace，
@@ -681,9 +745,795 @@ window.__ModuleLoader__.load({
       })
     }
 
+    // ---- Workspace migration ----
+    var MIGRATION_API_PATH = '/api/workspace-toolkit/migrate'
+    var migrationOverlay = null
+    var migrationPanel = null
+    var migrationBanner = null
+    var migrationState = null
+    function formatBytes(n) {
+      if (typeof n !== 'number' || !isFinite(n)) return '0'
+      if (n < 1024) return String(n) + ' B'
+      if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB'
+      if (n < 1024 * 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB'
+      return (n / (1024 * 1024 * 1024)).toFixed(2) + ' GB'
+    }
+
+    function migrationRequest(payload) {
+      return fetch(MIGRATION_API_PATH, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(function (response) {
+        return response.text().then(function (text) {
+          var data = null
+          try { data = text ? JSON.parse(text) : null } catch (err) { data = null }
+          if (!response.ok || !data || data.ok === false) {
+            var error = new Error((data && data.message) || ('HTTP ' + response.status))
+            if (data && data.code) error.code = data.code
+            if (data && data.details) error.details = data.details
+            if (data && data.migrationId) error.migrationId = data.migrationId
+            throw error
+          }
+          return data
+        })
+      })
+    }
+
+    function closeMigrationDialog() {
+      if (migrationOverlay && migrationOverlay.parentNode) {
+        migrationOverlay.parentNode.removeChild(migrationOverlay)
+      }
+      migrationOverlay = null
+      migrationPanel = null
+    }
+
+    function migrationModeLabel(mode) {
+      return mode === 'inline' ? LABELS.migrateModeInline : LABELS.migrateModeBoot
+    }
+
+    function openMigrationDialog() {
+      if (!pendingWorkspace || !pendingWorkspace.workspaceId) {
+        window.alert(LABELS.workspaceNotFound)
+        return
+      }
+      var item = findWorkspaceItemById(pendingWorkspace.workspaceId)
+      if (!item) {
+        window.alert(LABELS.workspaceNotFound)
+        return
+      }
+      // 菜单始终显示；只有真正点击时才让宿主 stat 一次，路径正常直接提示无需迁移。
+      migrationRequest({ action: 'workspace-status', workspaceId: item.workspaceId }).then(function (data) {
+        var rows = (data && data.workspaces) || []
+        var row = null
+        for (var i = 0; i < rows.length; i++) {
+          if (rows[i] && rows[i].workspaceId === item.workspaceId) { row = rows[i]; break }
+        }
+        if (!row) {
+          window.alert(LABELS.workspaceNotFound)
+          return
+        }
+        if (row.exists === true) {
+          showToast(LABELS.migrateNotNeeded)
+          return
+        }
+        buildMigrationDialog(item)
+      }).catch(function (error) {
+        window.alert(LABELS.migrateFailed + (error && error.message ? error.message : String(error)))
+      })
+    }
+
+    function buildMigrationDialog(item) {
+      closeMigrationDialog()
+      migrationState = {
+        workspaceId: item.workspaceId,
+        workspaceTitle: item.title,
+        sourcePath: item.path,
+        targetPath: '',
+        plan: null,
+        migrationId: null,
+        busy: false
+      }
+
+      migrationOverlay = document.createElement('div')
+      migrationOverlay.className = 'dsh-migration-overlay'
+      migrationPanel = document.createElement('div')
+      migrationPanel.className = 'dsh-migration-panel'
+      migrationPanel.setAttribute('role', 'dialog')
+      migrationPanel.setAttribute('aria-modal', 'true')
+      migrationPanel.setAttribute('aria-label', LABELS.migrateTitle)
+
+      var header = document.createElement('div')
+      header.className = 'dsh-migration-header'
+      var titleEl = document.createElement('div')
+      titleEl.className = 'dsh-migration-title'
+      titleEl.textContent = LABELS.migrateTitle + ' — ' + item.title
+      var closeBtn = document.createElement('button')
+      closeBtn.type = 'button'
+      closeBtn.className = 'dsh-migration-close'
+      closeBtn.setAttribute('aria-label', LABELS.close)
+      closeBtn.textContent = '×'
+      closeBtn.addEventListener('click', function () { if (!migrationState || !migrationState.busy) closeMigrationDialog() })
+      header.appendChild(titleEl)
+      header.appendChild(closeBtn)
+      migrationPanel.appendChild(header)
+
+      var body = document.createElement('div')
+      body.className = 'dsh-migration-body'
+      var sourceEl = document.createElement('div')
+      sourceEl.className = 'dsh-migration-source'
+      sourceEl.textContent = item.path
+      body.appendChild(sourceEl)
+
+      var label = document.createElement('label')
+      label.className = 'dsh-migration-label'
+      label.textContent = LABELS.migrateTargetLabel
+      var input = document.createElement('input')
+      input.type = 'text'
+      input.className = 'dsh-migration-input'
+      input.placeholder = LABELS.migrateTargetPlaceholder
+      input.spellcheck = false
+      input.autocomplete = 'off'
+      label.appendChild(input)
+      body.appendChild(label)
+
+      var summary = document.createElement('div')
+      summary.className = 'dsh-migration-summary'
+      body.appendChild(summary)
+
+      var options = document.createElement('label')
+      options.className = 'dsh-migration-check'
+      var unarchive = document.createElement('input')
+      unarchive.type = 'checkbox'
+      var optionsText = document.createElement('span')
+      optionsText.textContent = LABELS.migrateUnarchive
+      options.appendChild(unarchive)
+      options.appendChild(optionsText)
+      body.appendChild(options)
+
+      var statusEl = document.createElement('div')
+      statusEl.className = 'dsh-migration-status'
+      body.appendChild(statusEl)
+      migrationPanel.appendChild(body)
+
+      var footer = document.createElement('div')
+      footer.className = 'dsh-migration-footer'
+      var cancelBtn = document.createElement('button')
+      cancelBtn.type = 'button'
+      cancelBtn.className = 'dsh-migration-secondary'
+      cancelBtn.textContent = LABELS.cancel
+      cancelBtn.addEventListener('click', function () { if (!migrationState || !migrationState.busy) closeMigrationDialog() })
+      var rollbackBtn = document.createElement('button')
+      rollbackBtn.type = 'button'
+      rollbackBtn.className = 'dsh-migration-secondary'
+      rollbackBtn.textContent = LABELS.migrateRollback
+      rollbackBtn.hidden = true
+      var preflightBtn = document.createElement('button')
+      preflightBtn.type = 'button'
+      preflightBtn.className = 'dsh-migration-secondary'
+      preflightBtn.textContent = LABELS.migratePreflight
+      var startBtn = document.createElement('button')
+      startBtn.type = 'button'
+      startBtn.className = 'dsh-migration-primary'
+      startBtn.textContent = LABELS.migrateStart
+      startBtn.disabled = true
+      footer.appendChild(cancelBtn)
+      footer.appendChild(rollbackBtn)
+      footer.appendChild(preflightBtn)
+      footer.appendChild(startBtn)
+      migrationPanel.appendChild(footer)
+
+      migrationOverlay.appendChild(migrationPanel)
+      document.body.appendChild(migrationOverlay)
+      migrationOverlay.addEventListener('click', function (event) {
+        if (event.target === migrationOverlay && migrationState && !migrationState.busy) closeMigrationDialog()
+      })
+      input.focus()
+
+      function setBusy(busy) {
+        if (migrationState) migrationState.busy = busy
+        preflightBtn.disabled = busy
+        startBtn.disabled = busy || !migrationState || !migrationState.plan
+        cancelBtn.disabled = busy
+        closeBtn.disabled = busy
+        unarchive.disabled = busy
+        input.disabled = busy
+      }
+
+      function showError(error) {
+        statusEl.className = 'dsh-migration-status dsh-migration-error'
+        statusEl.textContent = (error && error.message) ? error.message : String(error)
+      }
+
+      function renderPlan(plan) {
+        var text = template(LABELS.migrateSummary, {
+          sessions: plan.sessionCount,
+          subagents: plan.subagentCount,
+          bytes: formatBytes(plan.totalBytes),
+          archived: plan.archivedCount,
+          mode: migrationModeLabel(plan.completionMode)
+        })
+        if (plan.sessionCount === 0) text += ' ' + LABELS.migrateNoSessions
+        summary.textContent = text
+      }
+
+      preflightBtn.addEventListener('click', function () {
+        var target = input.value.trim()
+        if (!target) {
+          showError(new Error(LABELS.migratePathRequired))
+          return
+        }
+        setBusy(true)
+        statusEl.className = 'dsh-migration-status'
+        statusEl.textContent = LABELS.migrateChecking
+        migrationRequest({ action: 'preflight', workspaceId: item.workspaceId, targetPath: target }).then(function (data) {
+          migrationState.plan = data.plan
+          migrationState.targetPath = data.plan.newPath
+          renderPlan(data.plan)
+          statusEl.textContent = ''
+          setBusy(false)
+          startBtn.disabled = false
+        }).catch(function (error) {
+          migrationState.plan = null
+          setBusy(false)
+          startBtn.disabled = true
+          showError(error)
+        })
+      })
+
+      startBtn.addEventListener('click', function () {
+        if (!migrationState || !migrationState.plan) return
+        setBusy(true)
+        summary.textContent = ''
+        statusEl.className = 'dsh-migration-status'
+        statusEl.textContent = LABELS.migrateRunning
+        migrationRequest({
+          action: 'prepare',
+          workspaceId: item.workspaceId,
+          targetPath: migrationState.plan.newPath,
+          unarchive: unarchive.checked
+        }).then(function (data) {
+          migrationState.migrationId = data.migrationId
+          setBusy(false)
+          if (data.completionMode === 'inline' && data.state === 'complete') {
+            statusEl.className = 'dsh-migration-status dsh-migration-success'
+            statusEl.textContent = LABELS.migrateInlineDone
+            preflightBtn.hidden = true
+            startBtn.hidden = true
+            unarchive.parentNode.hidden = true
+            input.disabled = true
+            setTimeout(closeMigrationDialog, 1600)
+            return
+          }
+          statusEl.className = 'dsh-migration-status dsh-migration-warning'
+          statusEl.textContent = LABELS.migrateBootPending + ' ' + LABELS.migrateBootHint
+          if (data.warning) {
+            var extra = document.createElement('div')
+            extra.className = 'dsh-migration-detail'
+            extra.textContent = data.warning
+            statusEl.appendChild(extra)
+          }
+          preflightBtn.hidden = true
+          startBtn.hidden = true
+          rollbackBtn.hidden = false
+        }).catch(function (error) {
+          setBusy(false)
+          startBtn.disabled = false
+          showError(error)
+          if (error && error.migrationId) {
+            migrationState.migrationId = error.migrationId
+            rollbackBtn.hidden = error.code === 'migration/completion-started'
+          } else if (error && error.code === 'migration/completion-started') {
+            rollbackBtn.hidden = true
+          }
+        })
+      })
+
+      rollbackBtn.addEventListener('click', function () {
+        if (!migrationState || !migrationState.migrationId) return
+        setBusy(true)
+        statusEl.className = 'dsh-migration-status'
+        statusEl.textContent = LABELS.migrateRunning
+        migrationRequest({ action: 'rollback', migrationId: migrationState.migrationId }).then(function () {
+          setBusy(false)
+          statusEl.className = 'dsh-migration-status dsh-migration-success'
+          statusEl.textContent = LABELS.migrateRolledBack
+          rollbackBtn.hidden = true
+          setTimeout(closeMigrationDialog, 1600)
+        }).catch(function (error) {
+          setBusy(false)
+          showError(error)
+        })
+      })
+    }
+
+    function removeMigrationBanner() {
+      if (migrationBanner && migrationBanner.parentNode) migrationBanner.parentNode.removeChild(migrationBanner)
+      migrationBanner = null
+    }
+
+    function showMigrationBanner(journal) {
+      removeMigrationBanner()
+      migrationBanner = document.createElement('div')
+      migrationBanner.className = 'dsh-migration-banner'
+      migrationBanner.setAttribute('role', 'status')
+      var title = document.createElement('div')
+      title.className = 'dsh-migration-banner-title'
+      title.textContent = LABELS.migrateBannerTitle
+      var text = document.createElement('div')
+      text.className = 'dsh-migration-banner-text'
+      if (journal.state === 'awaiting-restart') text.textContent = LABELS.migrateBootPending
+      else if (journal.state === 'completing' || journal.state === 'files-moved') text.textContent = LABELS.migrateCompleting
+      else text.textContent = LABELS.migrateStatusFailed
+      var actions = document.createElement('div')
+      actions.className = 'dsh-migration-banner-actions'
+      if (journal.state !== 'complete') {
+        var retry = document.createElement('button')
+        retry.type = 'button'
+        retry.className = 'dsh-migration-secondary'
+        retry.textContent = LABELS.migrateRetryComplete
+        retry.addEventListener('click', function () {
+          retry.disabled = true
+          migrationRequest({ action: 'retry-complete', migrationId: journal.id }).then(function (data) {
+            if (data.completionMode === 'inline' && data.state === 'complete') {
+              showToast(LABELS.migrateInlineDone)
+              removeMigrationBanner()
+            } else {
+              retry.disabled = false
+            }
+          }).catch(function (error) {
+            retry.disabled = false
+            window.alert(LABELS.migrateFailed + (error && error.message ? error.message : String(error)))
+          })
+        })
+        actions.appendChild(retry)
+      }
+      if (!journal.registryStarted) {
+        var rollback = document.createElement('button')
+        rollback.type = 'button'
+        rollback.className = 'dsh-migration-secondary'
+        rollback.textContent = LABELS.migrateRollback
+        rollback.addEventListener('click', function () {
+          rollback.disabled = true
+          migrationRequest({ action: 'rollback', migrationId: journal.id }).then(function () {
+            removeMigrationBanner()
+            showToast(LABELS.migrateRolledBack)
+          }).catch(function (error) {
+            rollback.disabled = false
+            window.alert(LABELS.migrateFailed + (error && error.message ? error.message : String(error)))
+          })
+        })
+        actions.appendChild(rollback)
+      }
+      var close = document.createElement('button')
+      close.type = 'button'
+      close.className = 'dsh-migration-banner-close'
+      close.setAttribute('aria-label', LABELS.migrateClose)
+      close.textContent = '×'
+      close.addEventListener('click', removeMigrationBanner)
+      title.appendChild(close)
+      migrationBanner.appendChild(title)
+      migrationBanner.appendChild(text)
+      migrationBanner.appendChild(actions)
+      document.body.appendChild(migrationBanner)
+    }
+
+    function checkMigrationStatus() {
+      migrationRequest({ action: 'status' }).then(function (data) {
+        var journals = (data.journals || []).filter(function (journal) {
+          return journal && journal.corrupt !== true && journal.state !== 'complete' && journal.state !== 'rolled-back'
+        })
+        if (journals.length === 0) return
+        showMigrationBanner(journals[journals.length - 1])
+      }).catch(function () {})
+    }
+
+    // ---- Archived session actions: delete + read-only viewer ----
+    // Both entry points ride the archived row's existing "unarchive" button, so
+    // they inherit its hover visibility and layout. Every selector miss is a
+    // silent skip (design D8): a DSH front-end update must not break the plugin.
+    var ARCHIVED_VIEW_ICON_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>'
+    var ARCHIVED_DELETE_ICON_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"></path><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>'
+    var DEFAULT_SESSION_DELETE_PATH = '/api/workspace-toolkit/sessions/delete'
+    var DEFAULT_SESSION_READ_PATH = '/api/workspace-toolkit/sessions/read'
+    var archivedScanScheduled = false
+    var viewerLayer = null
+    var deleteConfirmLayer = null
+    var viewerState = null
+
+    function sessionApiPath(kind) {
+      var config = toolkitConfig() || {}
+      if (kind === 'delete') return config.sessionDeleteApiPath || DEFAULT_SESSION_DELETE_PATH
+      return config.sessionReadApiPath || DEFAULT_SESSION_READ_PATH
+    }
+
+    function postSessionJson(path, payload) {
+      return fetch(path, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(function (response) {
+        return response.text().then(function (text) {
+          var data = null
+          try { data = text ? JSON.parse(text) : null } catch (err) { data = null }
+          if (!response.ok || !data || data.ok === false) {
+            var error = new Error((data && data.message) || ('HTTP ' + response.status))
+            if (data && data.code) error.code = data.code
+            if (data && data.results) error.results = data.results
+            throw error
+          }
+          return data
+        })
+      })
+    }
+
+    function sessionIdFromRow(row) {
+      var node = row
+      while (node && node !== document.body) {
+        if (node.getAttribute) {
+          var key = node.getAttribute('data-row-key') || ''
+          if (key.indexOf('session:') === 0) return key.slice('session:'.length)
+        }
+        node = node.parentElement
+      }
+      return null
+    }
+
+    function sessionTitleOf(id) {
+      try {
+        if (ctx && ctx.sessions && ctx.sessions.list) {
+          var snapshot = ctx.sessions.list.getSnapshot()
+          var row = snapshot && snapshot.byId ? snapshot.byId[id] : null
+          if (row && row.title) return row.title
+        }
+      } catch (err) { /* optional service */ }
+      return LABELS.viewerUntitled
+    }
+
+    function isArchivedSessionId(id) {
+      for (var i = 0; i < archivedSessionIds.length; i++) {
+        if (String(archivedSessionIds[i]) === String(id)) return true
+      }
+      return false
+    }
+
+    function isUnarchiveButton(btn) {
+      var label = btn.getAttribute('aria-label') || ''
+      return label.indexOf('取消归档') !== -1 || label.indexOf('Unarchive session') !== -1
+    }
+
+    function makeArchivedRowButton(label, svg, marker, onClick) {
+      var button = document.createElement('button')
+      button.type = 'button'
+      button.className = 'dsh-wst-row-action'
+      button.setAttribute('aria-label', label)
+      button.setAttribute('title', label)
+      button.setAttribute(marker, 'true')
+      button.setAttribute('data-dsh-archived-action', 'true')
+      button.innerHTML = svg
+      button.addEventListener('click', function (event) {
+        event.preventDefault()
+        event.stopPropagation()
+        onClick()
+      })
+      return button
+    }
+
+    // Inject the view/delete buttons beside the existing unarchive button.
+    function injectArchivedRowActions(scopeEl) {
+      var root = scopeEl || document
+      if (!root.querySelectorAll) return
+      var buttons = root.querySelectorAll('button[aria-label]')
+      for (var i = 0; i < buttons.length; i++) {
+        var button = buttons[i]
+        if (!isUnarchiveButton(button)) continue
+        var host = button.parentElement
+        if (!host || host.querySelector('[data-dsh-archived-action]')) continue
+        var id = sessionIdFromRow(button)
+        if (!id) continue
+        host.appendChild(makeArchivedRowButton(LABELS.viewSession, ARCHIVED_VIEW_ICON_SVG, 'data-dsh-view-session', function () {
+          openSessionViewer(id)
+        }))
+        host.appendChild(makeArchivedRowButton(LABELS.deleteSession, ARCHIVED_DELETE_ICON_SVG, 'data-dsh-delete-session', function () {
+          openDeleteConfirm(id)
+        }))
+      }
+    }
+
+    function scheduleArchivedScan() {
+      if (archivedScanScheduled) return
+      archivedScanScheduled = true
+      setTimeout(function () {
+        archivedScanScheduled = false
+        injectArchivedRowActions(document)
+      }, 120)
+    }
+
+    function removeLayer(layer) {
+      if (layer && layer.parentNode) layer.parentNode.removeChild(layer)
+    }
+
+    function closeDeleteConfirm() {
+      removeLayer(deleteConfirmLayer)
+      deleteConfirmLayer = null
+    }
+
+    function closeSessionViewer() {
+      removeLayer(viewerLayer)
+      viewerLayer = null
+      viewerState = null
+    }
+
+    // One toolbar layer at a time: the archive and migration dialogs own their
+    // own closers, so every new layer closes them first.
+    function closeToolbarLayers() {
+      closeDeleteConfirm()
+      closeSessionViewer()
+      closeArchiveDialog()
+      closeMigrationDialog()
+    }
+
+    function layerShell(titleText) {
+      var overlay = document.createElement('div')
+      overlay.className = 'dsh-batch-archive-overlay dsh-wst-layer'
+      var panel = document.createElement('div')
+      panel.className = 'dsh-batch-archive-panel'
+      panel.setAttribute('role', 'dialog')
+      panel.setAttribute('aria-modal', 'true')
+      panel.setAttribute('aria-label', titleText)
+      var header = document.createElement('div')
+      header.className = 'dsh-batch-archive-header'
+      var title = document.createElement('div')
+      title.className = 'dsh-batch-archive-title'
+      title.textContent = titleText
+      var close = document.createElement('button')
+      close.type = 'button'
+      close.className = 'dsh-batch-archive-close'
+      close.setAttribute('aria-label', LABELS.close)
+      close.textContent = '×'
+      header.appendChild(title)
+      header.appendChild(close)
+      panel.appendChild(header)
+      overlay.appendChild(panel)
+      document.body.appendChild(overlay)
+      return { overlay: overlay, panel: panel, header: header, close: close }
+    }
+
+    function formatSessionTime(time) {
+      if (typeof time !== 'number' || !isFinite(time)) return ''
+      try {
+        return new Date(time).toLocaleString()
+      } catch (err) {
+        return ''
+      }
+    }
+
+    // ---- Delete confirmation ----
+    function openDeleteConfirm(id) {
+      closeToolbarLayers()
+      var title = sessionTitleOf(id)
+      var shell = layerShell(LABELS.deleteConfirmTitle)
+      var body = document.createElement('div')
+      body.className = 'dsh-batch-archive-body'
+      var text = document.createElement('p')
+      text.className = 'dsh-wst-confirm-text'
+      text.textContent = template(LABELS.deleteConfirmBody, { title: title })
+      var warning = document.createElement('p')
+      warning.className = 'dsh-wst-confirm-warning'
+      warning.textContent = isZh() ? '删除后不可恢复。' : 'This cannot be undone.'
+      body.appendChild(text)
+      body.appendChild(warning)
+      var footer = document.createElement('div')
+      footer.className = 'dsh-wst-confirm-footer'
+      var cancel = document.createElement('button')
+      cancel.type = 'button'
+      cancel.className = 'dsh-wst-btn'
+      cancel.textContent = LABELS.cancel
+      var confirm = document.createElement('button')
+      confirm.type = 'button'
+      confirm.className = 'dsh-wst-btn dsh-wst-btn-danger'
+      confirm.textContent = LABELS.deleteAction
+      footer.appendChild(cancel)
+      footer.appendChild(confirm)
+      shell.panel.appendChild(body)
+      shell.panel.appendChild(footer)
+      deleteConfirmLayer = shell.overlay
+
+      function settle() { closeDeleteConfirm() }
+      function submit() {
+        if (confirm.disabled) return
+        confirm.disabled = true
+        cancel.disabled = true
+        confirm.textContent = LABELS.deleting
+        postSessionJson(sessionApiPath('delete'), { ids: [id] }).then(function (data) {
+          var result = data.results && data.results[0]
+          if (!result || result.ok !== true) {
+            var failure = result && result.error ? (result.error.message || result.error.code) : 'unknown error'
+            throw new Error(failure)
+          }
+          settle()
+          showToast(template(LABELS.deleted, { n: 1, bytes: formatBytes(result.bytes || 0) }))
+          // The registry's unarchive already pushed the row change to the
+          // sidebar; a rescan just repairs any injected buttons left behind.
+          scheduleArchivedScan()
+        }).catch(function (error) {
+          confirm.disabled = false
+          cancel.disabled = false
+          confirm.textContent = LABELS.deleteAction
+          warning.textContent = LABELS.deleteFailed + String(error && error.message ? error.message : error)
+        })
+      }
+      cancel.addEventListener('click', settle)
+      confirm.addEventListener('click', submit)
+      shell.close.addEventListener('click', settle)
+      shell.overlay.addEventListener('click', function (event) {
+        if (event.target === shell.overlay) settle()
+      })
+    }
+
+    // ---- Read-only viewer ----
+    function renderViewerHeader(state, session) {
+      var meta = document.createElement('div')
+      meta.className = 'dsh-wst-viewer-meta'
+      var created = document.createElement('span')
+      created.textContent = LABELS.viewerCreatedAt + ' ' + formatSessionTime(session.createdAt)
+      var cwd = document.createElement('span')
+      cwd.className = 'dsh-wst-viewer-cwd'
+      cwd.textContent = session.cwd || ''
+      meta.appendChild(created)
+      meta.appendChild(cwd)
+      state.metaHost.textContent = ''
+      state.metaHost.appendChild(meta)
+    }
+
+    function renderViewerEvent(event) {
+      var row = document.createElement('div')
+      row.className = 'dsh-wst-viewer-event dsh-wst-role-' + event.role
+      var strip = document.createElement('span')
+      strip.className = 'dsh-wst-viewer-strip'
+      row.appendChild(strip)
+      var body = document.createElement('div')
+      body.className = 'dsh-wst-viewer-body'
+      if (event.text) {
+        var text = document.createElement('div')
+        text.className = 'dsh-wst-viewer-text'
+        text.textContent = event.text
+        body.appendChild(text)
+      }
+      if (event.truncated) {
+        var cut = document.createElement('div')
+        cut.className = 'dsh-wst-viewer-truncated'
+        cut.textContent = LABELS.viewerTruncated
+        body.appendChild(cut)
+      }
+      if (event.toolCalls) {
+        for (var i = 0; i < event.toolCalls.length; i++) {
+          var call = event.toolCalls[i]
+          var details = document.createElement('details')
+          details.className = 'dsh-wst-viewer-tool'
+          var summary = document.createElement('summary')
+          summary.textContent = LABELS.viewerToolCall + ': ' + call.name
+          var args = document.createElement('pre')
+          args.className = 'dsh-wst-viewer-args'
+          args.textContent = call.arguments
+          details.appendChild(summary)
+          details.appendChild(args)
+          body.appendChild(details)
+        }
+      }
+      if (event.time) {
+        var time = document.createElement('div')
+        time.className = 'dsh-wst-viewer-time'
+        time.textContent = formatSessionTime(event.time)
+        body.appendChild(time)
+      }
+      row.appendChild(body)
+      return row
+    }
+
+    function openSessionViewer(id) {
+      closeToolbarLayers()
+      var shell = layerShell(LABELS.viewerTitle)
+      var metaHost = document.createElement('div')
+      metaHost.className = 'dsh-wst-viewer-header'
+      var notice = document.createElement('div')
+      notice.className = 'dsh-wst-viewer-notice'
+      notice.textContent = LABELS.viewerReadonly
+      var body = document.createElement('div')
+      body.className = 'dsh-batch-archive-body dsh-wst-viewer-body-host'
+      var loading = document.createElement('div')
+      loading.className = 'dsh-batch-archive-empty'
+      loading.textContent = LABELS.viewerLoading
+      var more = document.createElement('button')
+      more.type = 'button'
+      more.className = 'dsh-wst-btn dsh-wst-viewer-more'
+      more.textContent = LABELS.viewerLoadMore
+      more.hidden = true
+      body.appendChild(loading)
+      body.appendChild(more)
+      var wrap = document.createElement('div')
+      wrap.className = 'dsh-wst-viewer-wrap'
+      wrap.appendChild(metaHost)
+      wrap.appendChild(notice)
+      shell.panel.appendChild(wrap)
+      shell.panel.appendChild(body)
+      viewerLayer = shell.overlay
+      var state = { id: id, cursor: null, loading: false, exhausted: false, count: 0, metaHost: metaHost }
+      viewerState = state
+      var eventsHost = document.createElement('div')
+      eventsHost.className = 'dsh-wst-viewer-events'
+      body.insertBefore(eventsHost, more)
+
+      function fail(message) {
+        loading.textContent = message
+        loading.hidden = false
+        more.hidden = true
+      }
+
+      function load(after) {
+        if (state.loading) return
+        state.loading = true
+        more.disabled = true
+        loading.hidden = false
+        loading.textContent = LABELS.viewerLoading
+        postSessionJson(sessionApiPath('read'), {
+          id: state.id,
+          after: after === null ? undefined : after,
+          limit: 50
+        }).then(function (data) {
+          loading.hidden = true
+          if (data.session) renderViewerHeader(state, data.session)
+          var events = data.events || []
+          for (var i = 0; i < events.length; i++) {
+            eventsHost.appendChild(renderViewerEvent(events[i]))
+            state.count += 1
+          }
+          state.cursor = data.nextAfter
+          state.exhausted = data.nextAfter === null || data.nextAfter === undefined
+          if (state.count === 0 && state.exhausted) {
+            loading.hidden = false
+            loading.textContent = LABELS.viewerNoEvents
+          }
+          more.hidden = state.exhausted
+          more.disabled = false
+          state.loading = false
+        }).catch(function (error) {
+          var code = error && error.code ? String(error.code) : ''
+          if (code === 'sessions/migration-required') return fail(LABELS.viewerMigration)
+          if (code === 'sessions/owned') return fail(LABELS.viewerOwned)
+          if (code === 'sessions/not-found') return fail(LABELS.viewerMissing)
+          fail(LABELS.viewerFailed + String(error && error.message ? error.message : error))
+        })
+      }
+
+      more.addEventListener('click', function () {
+        if (state.exhausted || state.loading) return
+        load(state.cursor)
+      })
+      shell.close.addEventListener('click', function () { closeSessionViewer() })
+      shell.overlay.addEventListener('click', function (event) {
+        if (event.target === shell.overlay) closeSessionViewer()
+      })
+      load(null)
+    }
+
+    // Clicking an archived row opens the viewer instead of doing nothing.
+    document.addEventListener('click', function (event) {
+      if (!event.target || !event.target.closest) return
+      if (event.target.closest('button') || event.target.closest('[role="menu"]')) return
+      var row = event.target.closest('[data-row-key^="session:"]')
+      if (!row) return
+      var id = sessionIdFromRow(row)
+      if (!id || !isArchivedSessionId(id)) return
+      event.preventDefault()
+      event.stopPropagation()
+      openSessionViewer(id)
+    }, true)
+
     // ---- Menu injection ----
     var COPY_PATH_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>'
     var ARCHIVE_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"></path><path d="M1 3h22v5H1z"></path><path d="M10 12h4"></path></svg>'
+    var MIGRATE_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M9 13h6"></path><path d="m13 10 3 3-3 3"></path></svg>'
 
     function makeMenuItem(ref, label, iconSvg, markerAttr, onClick, extraClass) {
       var item = document.createElement('button')
@@ -710,7 +1560,7 @@ window.__ModuleLoader__.load({
     }
 
     function injectMenuItem(menu) {
-      if (menu.querySelector('[data-dsh-copy-path-item]') && menu.querySelector('[data-dsh-batch-archive-item]')) return
+      if (menu.querySelector('[data-dsh-copy-path-item]') && menu.querySelector('[data-dsh-batch-archive-item]') && menu.querySelector('[data-dsh-migrate-item]')) return
       var ref = menu.querySelector('[role="menuitem"]')
       if (!ref) return
 
@@ -742,10 +1592,41 @@ window.__ModuleLoader__.load({
           menu.appendChild(archiveItem)
         }
       }
+
+      if (!menu.querySelector('[data-dsh-migrate-item]')) {
+        var migrateItem = makeMenuItem(ref, LABELS.migrate, MIGRATE_ICON_SVG, 'data-dsh-migrate-item', function () {
+          openMigrationDialog()
+        })
+        if (ref.parentElement) {
+          var anchor = menu.querySelector('[data-dsh-batch-archive-item]') || menu.querySelector('[data-dsh-copy-path-item]') || ref
+          if (anchor.nextSibling) ref.parentElement.insertBefore(migrateItem, anchor.nextSibling)
+          else ref.parentElement.appendChild(migrateItem)
+        } else {
+          menu.appendChild(migrateItem)
+        }
+      }
+    }
+
+    // Session context menu: archived sessions get a delete entry as the
+    // fallback path when the hover buttons are not reachable.
+    function injectSessionDeleteMenuItem(menu) {
+      if (!pendingSession || Date.now() > pendingSession.expires) return
+      if (!isArchivedSessionId(pendingSession.id)) return
+      if (menu.querySelector('[data-dsh-session-delete-item]')) return
+      var ref = menu.querySelector('[role="menuitem"]')
+      if (!ref) return
+      var targetId = pendingSession.id
+      var item = makeMenuItem(ref, LABELS.deleteSession, ARCHIVED_DELETE_ICON_SVG, 'data-dsh-session-delete-item', function () {
+        openDeleteConfirm(targetId)
+      })
+      if (ref.parentElement) ref.parentElement.insertBefore(item, ref.nextSibling)
+      else menu.appendChild(item)
     }
 
     function handleMenuMutations(mutations) {
-      if (!pendingWorkspace || Date.now() > pendingWorkspace.expires) return
+      var wantsWorkspace = pendingWorkspace && Date.now() <= pendingWorkspace.expires
+      var wantsSession = pendingSession && Date.now() <= pendingSession.expires
+      if (!wantsWorkspace && !wantsSession) return
       for (var i = 0; i < mutations.length; i++) {
         var added = mutations[i].addedNodes
         for (var j = 0; j < added.length; j++) {
@@ -753,7 +1634,9 @@ window.__ModuleLoader__.load({
           if (node.nodeType !== 1) continue
           var menu = (node.getAttribute && node.getAttribute('role') === 'menu') ? node : null
           if (!menu && node.querySelector) menu = node.querySelector('[role="menu"]')
-          if (menu) injectMenuItem(menu)
+          if (!menu) continue
+          if (wantsWorkspace) injectMenuItem(menu)
+          if (wantsSession) injectSessionDeleteMenuItem(menu)
         }
       }
     }
@@ -790,10 +1673,72 @@ window.__ModuleLoader__.load({
         '.dsh-batch-archive-secondary { background: transparent; color: var(--dsw-alias-label-secondary, #374151); border-color: var(--dsw-alias-border-l2, #d1d5db); }',
         '.dsh-batch-archive-secondary:hover { background: var(--dsw-alias-interactive-bg-hover, #f3f4f6); }',
         '',
+        '.dsh-migration-overlay { position: fixed; inset: 0; background: var(--dsw-alias-bg-mask-1, rgba(0,0,0,0.45)); z-index: 2147483641; display: flex; align-items: center; justify-content: center; }',
+        '.dsh-migration-panel { background: var(--dsw-alias-bg-layer-2, #fff); color: var(--dsw-alias-label-primary, #1f2328); border: 1px solid var(--dsw-alias-border-l1, rgba(0,0,0,0.1)); border-radius: 14px; box-shadow: var(--dsw-elevation-prominent, 0 10px 40px rgba(0,0,0,0.25)); width: min(560px, calc(100vw - 32px)); max-height: min(720px, calc(100vh - 48px)); display: flex; flex-direction: column; overflow: hidden; }',
+        '.dsh-migration-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--dsw-alias-border-l2, #e5e7eb); }',
+        '.dsh-migration-title { font-size: 15px; font-weight: 600; line-height: 1.35; }',
+        '.dsh-migration-close { background: transparent; border: none; color: var(--dsw-alias-label-tertiary, #6b7280); font-size: 20px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: 6px; }',
+        '.dsh-migration-close:hover { color: var(--dsw-alias-label-primary, #111827); background: var(--dsw-alias-interactive-bg-hover, transparent); }',
+        '.dsh-migration-body { padding: 14px 18px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 12px; }',
+        '.dsh-migration-source { font-size: 12px; color: var(--dsw-alias-label-tertiary, #6b7280); word-break: break-all; }',
+        '.dsh-migration-label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--dsw-alias-label-secondary, #374151); }',
+        '.dsh-migration-input { width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--dsw-alias-border-l2, #d1d5db); background: var(--dsw-alias-bg-layer-1, transparent); color: var(--dsw-alias-label-primary, inherit); font-size: 13px; font-family: inherit; }',
+        '.dsh-migration-input:focus { outline: 2px solid var(--dsw-alias-brand-primary, #2563eb); outline-offset: 1px; }',
+        '.dsh-migration-summary { font-size: 13px; line-height: 1.5; color: var(--dsw-alias-label-secondary, #374151); white-space: pre-wrap; }',
+        '.dsh-migration-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--dsw-alias-label-secondary, #374151); cursor: pointer; }',
+        '.dsh-migration-check input { accent-color: var(--dsw-alias-brand-primary, #2563eb); width: 14px; height: 14px; margin: 0; }',
+        '.dsh-migration-status { font-size: 13px; line-height: 1.5; color: var(--dsw-alias-label-secondary, #374151); white-space: pre-wrap; }',
+        '.dsh-migration-status.dsh-migration-error { color: var(--dsw-alias-state-error-primary, #b91c1c); }',
+        '.dsh-migration-status.dsh-migration-success { color: var(--dsw-alias-state-success-primary, #15803d); }',
+        '.dsh-migration-status.dsh-migration-warning { color: var(--dsw-alias-state-warning-primary, #b45309); }',
+        '.dsh-migration-detail { margin-top: 6px; font-size: 12px; color: var(--dsw-alias-label-tertiary, #6b7280); word-break: break-word; }',
+        '.dsh-migration-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 18px; border-top: 1px solid var(--dsw-alias-border-l2, #e5e7eb); flex-wrap: wrap; }',
+        '.dsh-migration-primary, .dsh-migration-secondary { padding: 7px 14px; border-radius: 8px; font-size: 13px; cursor: pointer; border: 1px solid transparent; }',
+        '.dsh-migration-primary { background: var(--dsw-alias-button-primary-fill, #111827); color: var(--dsw-alias-label-primary-foreground, #fff); }',
+        '.dsh-migration-primary:hover:not(:disabled) { background: var(--dsw-alias-button-primary-hover, #374151); }',
+        '.dsh-migration-primary:disabled, .dsh-migration-secondary:disabled { opacity: 0.5; cursor: not-allowed; }',
+        '.dsh-migration-secondary { background: transparent; color: var(--dsw-alias-label-secondary, #374151); border-color: var(--dsw-alias-border-l2, #d1d5db); }',
+        '.dsh-migration-secondary:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover, #f3f4f6); }',
+        '.dsh-migration-banner { position: fixed; right: 18px; bottom: 18px; z-index: 2147483639; width: min(360px, calc(100vw - 36px)); padding: 12px 14px; border-radius: 12px; background: var(--dsw-alias-bg-layer-2, #fff); color: var(--dsw-alias-label-primary, #1f2328); border: 1px solid var(--dsw-alias-border-l1, rgba(0,0,0,0.12)); box-shadow: var(--dsw-elevation-prominent, 0 8px 30px rgba(0,0,0,0.22)); display: flex; flex-direction: column; gap: 8px; }',
+        '.dsh-migration-banner-title { display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 600; }',
+        '.dsh-migration-banner-text { font-size: 12px; line-height: 1.5; color: var(--dsw-alias-label-secondary, #374151); }',
+        '.dsh-migration-banner-actions { display: flex; gap: 8px; flex-wrap: wrap; }',
+        '.dsh-migration-banner-close { background: transparent; border: none; color: var(--dsw-alias-label-tertiary, #6b7280); font-size: 18px; line-height: 1; cursor: pointer; padding: 0 4px; }',
+        '',
         '@keyframes dsh-wst-toast-in { from { opacity: 0; transform: translate(-50%, -6px); } to { opacity: 1; transform: translate(-50%, 0); } }',
         '@keyframes dsh-wst-toast-fade { to { opacity: 0; visibility: hidden; } }',
         '.dsh-wst-toast { position: fixed; top: 40px; left: 50%; z-index: 1100; pointer-events: none; display: flex; align-items: center; padding: 12px 16px; border-radius: var(--dsw-radius-lg, 10px); background: var(--dsw-alias-toast-bg, #1f2328); color: var(--dsw-alias-toast-label, #fff); font-size: 14px; line-height: 22px; box-shadow: var(--dsw-shadow-lv3, 0 4px 20px rgba(0,0,0,0.25)); transform: translateX(-50%); width: max-content; max-width: min(640px, calc(100vw - 48px)); white-space: nowrap; animation: dsh-wst-toast-in 160ms ease-out, dsh-wst-toast-fade 1000ms ease 2000ms forwards; }',
         '@media (prefers-reduced-motion: reduce) { .dsh-wst-toast { animation: dsh-wst-toast-fade 1000ms ease 2000ms forwards; } }',
+        '',
+        '.dsh-wst-row-action { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: none; border-radius: 6px; background: transparent; color: var(--dsw-alias-label-tertiary, #6b7280); cursor: pointer; }',
+        '.dsh-wst-row-action:hover { color: var(--dsw-alias-label-primary, #111827); background: var(--dsw-alias-interactive-bg-hover, rgba(0,0,0,0.06)); }',
+        '.dsh-wst-confirm-text { margin: 0; font-size: 13px; line-height: 1.6; color: var(--dsw-alias-label-primary, #1f2328); }',
+        '.dsh-wst-confirm-warning { margin: 10px 0 0; font-size: 13px; line-height: 1.5; color: var(--dsw-alias-state-error-primary, #b91c1c); }',
+        '.dsh-wst-confirm-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 18px; border-top: 1px solid var(--dsw-alias-border-l2, #e5e7eb); }',
+        '.dsh-wst-btn { padding: 7px 14px; border-radius: 8px; font-size: 13px; cursor: pointer; border: 1px solid var(--dsw-alias-border-l2, #d1d5db); background: transparent; color: var(--dsw-alias-label-secondary, #374151); }',
+        '.dsh-wst-btn:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover, #f3f4f6); }',
+        '.dsh-wst-btn:disabled { opacity: 0.5; cursor: not-allowed; }',
+        '.dsh-wst-btn-danger { border-color: transparent; background: var(--dsw-alias-state-error-primary, #b91c1c); color: #fff; }',
+        '.dsh-wst-btn-danger:hover:not(:disabled) { background: var(--dsw-alias-state-error-hover, #991b1b); }',
+        '.dsh-wst-viewer-wrap { padding: 10px 18px 0; display: flex; flex-direction: column; gap: 8px; }',
+        '.dsh-wst-viewer-header { font-size: 12px; color: var(--dsw-alias-label-tertiary, #6b7280); }',
+        '.dsh-wst-viewer-meta { display: flex; flex-wrap: wrap; gap: 10px; }',
+        '.dsh-wst-viewer-cwd { word-break: break-all; }',
+        '.dsh-wst-viewer-notice { font-size: 12px; line-height: 1.5; padding: 6px 10px; border-radius: 8px; background: var(--dsw-alias-bg-layer-1, rgba(0,0,0,0.04)); color: var(--dsw-alias-label-secondary, #374151); }',
+        '.dsh-wst-viewer-body-host { display: flex; flex-direction: column; gap: 8px; }',
+        '.dsh-wst-viewer-events { display: flex; flex-direction: column; gap: 10px; }',
+        '.dsh-wst-viewer-event { display: flex; gap: 10px; align-items: stretch; }',
+        '.dsh-wst-viewer-strip { width: 3px; border-radius: 2px; background: var(--dsw-alias-border-l2, #d1d5db); flex-shrink: 0; }',
+        '.dsh-wst-role-user .dsh-wst-viewer-strip { background: var(--dsw-alias-brand-primary, #2563eb); }',
+        '.dsh-wst-role-assistant .dsh-wst-viewer-strip { background: var(--dsw-alias-state-success-primary, #15803d); }',
+        '.dsh-wst-role-tool .dsh-wst-viewer-strip { background: var(--dsw-alias-state-warning-primary, #b45309); }',
+        '.dsh-wst-viewer-body { flex: 1; min-width: 0; font-size: 13px; line-height: 1.6; color: var(--dsw-alias-label-primary, #1f2328); }',
+        '.dsh-wst-viewer-text { white-space: pre-wrap; word-break: break-word; }',
+        '.dsh-wst-viewer-truncated, .dsh-wst-viewer-time { font-size: 11px; color: var(--dsw-alias-label-tertiary, #6b7280); margin-top: 4px; }',
+        '.dsh-wst-viewer-tool { margin-top: 6px; font-size: 12px; }',
+        '.dsh-wst-viewer-tool summary { cursor: pointer; color: var(--dsw-alias-label-secondary, #374151); }',
+        '.dsh-wst-viewer-args { margin: 6px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--dsw-alias-bg-layer-1, rgba(0,0,0,0.04)); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow: auto; }',
+        '.dsh-wst-viewer-more { align-self: flex-start; margin: 4px 0 12px; }',
         '',
         // 消息附件卡片可点击样式：CSS-module 类名被 hash，用结构选择器定位
         // （附件行内带 title 的 span 就是文件卡片）。
@@ -817,9 +1762,21 @@ window.__ModuleLoader__.load({
 
     // Handle Escape to close the dialog.
     document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && (deleteConfirmLayer || viewerLayer)) {
+        e.stopPropagation()
+        closeDeleteConfirm()
+        closeSessionViewer()
+        return
+      }
       if (e.key === 'Escape' && archiveOverlay) {
         e.stopPropagation()
         closeArchiveDialog()
+        return
+      }
+      if (e.key === 'Escape' && migrationOverlay) {
+        if (migrationState && migrationState.busy) return
+        e.stopPropagation()
+        closeMigrationDialog()
       }
     }, true)
 
@@ -829,6 +1786,9 @@ window.__ModuleLoader__.load({
     function apply(pluginCtx) {
       ctx = pluginCtx
       injectStyles()
+      setTimeout(scheduleArchivedScan, 800)
+      setTimeout(scheduleArchivedScan, 3000)
+      setTimeout(checkMigrationStatus, 1200)
       if (ctx.workspaces && ctx.workspaces.list) {
         try {
           var refreshWorkspaces = function () {
@@ -1160,6 +2120,7 @@ window.__ModuleLoader__.load({
               if (pendingWorkspace && (Date.now() - (pendingWorkspace.setAt || 0)) > 100) {
                 pendingWorkspace = null
               }
+              pendingSession = null
             }
           }
         }
@@ -1182,6 +2143,7 @@ window.__ModuleLoader__.load({
         if (needMenu) handleMenuMutations(mutations)
         if (needComposer) ensureComposerRestoreButtons()
         if (needBubble) scheduleBubbleScan()
+        scheduleArchivedScan()
       })
       domObserver.observe(document.body, { childList: true, subtree: true })
     }
